@@ -11,6 +11,7 @@ namespace Yjs\Tests\Support;
 
 use PHPUnit\Framework\Assert;
 use Yjs\Lib0\Prng;
+use Yjs\Types\AbstractType;
 use Yjs\Types\YXmlElement;
 
 /**
@@ -61,6 +62,7 @@ function compare( array $users ): void {
 	}
 
 	$firstArray       = $users[0]->getArray( 'array' )->toJSON();
+	$firstText        = normalizeDeltaForCompare( $users[0]->getText( 'text' )->toDelta() );
 	$firstStateVector = \Yjs\encodeStateVector( $users[0] )->toHexString();
 	$firstUpdate      = \Yjs\encodeStateAsUpdate( $users[0] )->toHexString();
 
@@ -74,9 +76,62 @@ function compare( array $users ): void {
 		Assert::assertNull( $user->store->pendingStructs );
 		Assert::assertEquals( $firstArray, $user->getArray( 'array' )->toJSON() );
 		Assert::assertSame( $user->getArray( 'array' )->length, count( $user->getArray( 'array' )->toArray() ) );
+		Assert::assertSame( deltaTextLength( $user->getText( 'text' )->toDelta() ), $user->getText( 'text' )->length );
+		Assert::assertSame( $firstText, normalizeDeltaForCompare( $user->getText( 'text' )->toDelta() ) );
 		Assert::assertSame( $firstStateVector, \Yjs\encodeStateVector( $user )->toHexString() );
 		Assert::assertSame( $firstUpdate, \Yjs\encodeStateAsUpdate( $user )->toHexString() );
 	}
+}
+
+/**
+ * @param array<int,array<string,mixed>> $delta Delta.
+ * @return int
+ */
+function deltaTextLength( array $delta ): int {
+	$length = 0;
+	foreach ( $delta as $op ) {
+		if ( array_key_exists( 'insert', $op ) ) {
+			$length += is_string( $op['insert'] ) ? strlen( $op['insert'] ) : 1;
+		}
+	}
+	return $length;
+}
+
+/**
+ * @param array<int,array<string,mixed>> $delta Delta.
+ * @return array<int,array<string,mixed>>
+ */
+function normalizeDeltaForCompare( array $delta ): array {
+	return array_map(
+		static function ( array $op ): array {
+			if ( array_key_exists( 'insert', $op ) && $op['insert'] instanceof AbstractType ) {
+				$op['insert'] = $op['insert']->toJSON();
+			}
+			return normalizeJsonValue( $op );
+		},
+		$delta
+	);
+}
+
+/**
+ * @param mixed $value Value.
+ * @return mixed
+ */
+function normalizeJsonValue( $value ) {
+	if ( $value instanceof AbstractType ) {
+		return $value->toJSON();
+	}
+	if ( $value instanceof \stdClass ) {
+		return normalizeJsonValue( get_object_vars( $value ) );
+	}
+	if ( is_array( $value ) ) {
+		$result = array();
+		foreach ( $value as $key => $item ) {
+			$result[ $key ] = normalizeJsonValue( $item );
+		}
+		return $result;
+	}
+	return $value;
 }
 
 /**

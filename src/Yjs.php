@@ -81,10 +81,10 @@ final class Yjs {
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function createSnapshot( ...$args ) {
-		createSnapshot( ...$args );
+		return createSnapshot( ...$args );
 	}
 
 	/**
@@ -105,26 +105,26 @@ final class Yjs {
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function cleanupYTextFormatting( ...$args ) {
-		cleanupYTextFormatting( ...$args );
+		return cleanupYTextFormatting( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function snapshot( ...$args ) {
-		snapshot( ...$args );
+		return snapshot( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function emptySnapshot( ...$args ) {
-		emptySnapshot( ...$args );
+		return emptySnapshot( ...$args );
 	}
 
 	/**
@@ -265,34 +265,34 @@ final class Yjs {
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function decodeSnapshot( ...$args ) {
-		decodeSnapshot( ...$args );
+		return decodeSnapshot( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function encodeSnapshot( ...$args ) {
-		encodeSnapshot( ...$args );
+		return encodeSnapshot( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function decodeSnapshotV2( ...$args ) {
-		decodeSnapshotV2( ...$args );
+		return decodeSnapshotV2( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function encodeSnapshotV2( ...$args ) {
-		encodeSnapshotV2( ...$args );
+		return encodeSnapshotV2( ...$args );
 	}
 
 	/**

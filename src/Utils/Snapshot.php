@@ -1,6 +1,6 @@
 <?php
 /**
- * Snapshot public API stub.
+ * Snapshot state.
  *
  * @package Yjs
  */
@@ -10,16 +10,25 @@ declare(strict_types=1);
 namespace Yjs\Utils;
 
 /**
- * Snapshot API stub for the Yjs port red baseline.
+ * Port of yjs/src/utils/Snapshot.js Snapshot.
  */
 class Snapshot {
-	use \Yjs\NotImplementedTrait;
+	/**
+	 * @var DeleteSet
+	 */
+	public DeleteSet $ds;
 
 	/**
-	 * @param mixed ...$args Constructor arguments.
+	 * @var array<int,int>
 	 */
-	public function __construct( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public array $sv;
+
+	/**
+	 * @param DeleteSet      $ds Delete set.
+	 * @param array<int,int> $sv State vector.
+	 */
+	public function __construct( DeleteSet $ds, array $sv ) {
+		$this->ds = $ds;
+		$this->sv = $sv;
 	}
 }

@@ -428,6 +428,136 @@ const makeYMapConvergenceFixtures = () => ({
   cases: [10, 40, 42, 43, 44, 45, 46, 300, 400, 500].map(seed => runYMapConvergenceCase(seed, 80, 3))
 })
 
+const ytextAttrs = [
+  { bold: true },
+  { bold: null },
+  { italic: true },
+  { color: 'red' },
+  { falsy: false },
+  { meta: { level: '1' } }
+]
+
+const captureYTextScenario = (name, clientID, apply) => {
+  const doc = new Y.Doc({ guid: `y-php-ytext-${name}` })
+  doc.clientID = clientID
+  apply(doc.getText('text'), doc)
+  return {
+    name,
+    delta: doc.getText('text').toDelta(),
+    string: doc.getText('text').toString(),
+    updateHex: hex(Y.encodeStateAsUpdate(doc)),
+    stateVectorHex: hex(Y.encodeStateVector(doc)),
+    snapshotHex: hex(Y.encodeSnapshot(Y.snapshot(doc)))
+  }
+}
+
+const makeYTextFixtures = () => ({
+  source: 'yjs/src/types/YText.js',
+  scenarios: [
+    captureYTextScenario('formatted-runs', 11, text => {
+      text.insert(0, 'hello world')
+      text.format(0, 5, { bold: true })
+      text.format(6, 5, { color: 'red' })
+      text.delete(5, 1)
+      text.insert(5, ' ')
+    }),
+    captureYTextScenario('delta-embed', 12, text => {
+      text.applyDelta([
+        { insert: 'a', attributes: { bold: true } },
+        { insert: { image: 'imageSrc.png' }, attributes: { width: 100 } },
+        { insert: 'b', attributes: { bold: true } }
+      ])
+    }),
+    captureYTextScenario('format-cleanup', 13, text => {
+      text.insert(0, 'abcdef')
+      text.format(0, 6, { bold: true })
+      text.format(2, 2, { bold: null })
+      text.delete(1, 4)
+      text.insert(1, 'ZZ', { italic: true })
+    }),
+    captureYTextScenario('map-attributes', 14, text => {
+      text.setAttribute('lang', 'en')
+      text.setAttribute('block', { id: 'p1' })
+      text.insert(0, 'paragraph\n', { block: { id: 'p1' } })
+    })
+  ]
+})
+
+const runYTextConvergenceCase = (seed, iterations, users) => {
+  const gen = prng.create(seed)
+  const docs = Array.from({ length: users }, (_, i) => {
+    const doc = new Y.Doc({ guid: `y-php-ytext-${seed}-${i}` })
+    doc.clientID = i + 1
+    return doc
+  })
+  const operations = []
+  let unique = 0
+
+  for (let i = 0; i < iterations; i++) {
+    const user = prng.int32(gen, 0, users - 1)
+    const doc = docs[user]
+    const text = doc.getText('text')
+    const op = prng.int32(gen, 0, 4)
+
+    if (op === 0 || text.length === 0) {
+      const value = prng.oneOf(gen, ['a', 'b', 'c', ' ', '\n', `w${unique++}`])
+      const pos = prng.int32(gen, 0, text.length)
+      text.insert(pos, value)
+      operations.push({ op: 'insertText', user, pos, value })
+    } else if (op === 1) {
+      const pos = prng.int32(gen, 0, text.length)
+      const embed = { image: `image-${unique++}.png` }
+      const attrs = prng.oneOf(gen, [{ width: 100 }, { width: 200, bold: true }, {}])
+      text.insertEmbed(pos, embed, attrs)
+      operations.push({ op: 'insertEmbed', user, pos, embed, attrs })
+    } else if (op === 2) {
+      const pos = prng.int32(gen, 0, text.length - 1)
+      const len = prng.int32(gen, 1, Math.min(3, text.length - pos))
+      const attrs = prng.oneOf(gen, ytextAttrs)
+      text.format(pos, len, attrs)
+      operations.push({ op: 'format', user, pos, len, attrs })
+    } else if (op === 3) {
+      const pos = prng.int32(gen, 0, text.length - 1)
+      const len = prng.int32(gen, 1, Math.min(3, text.length - pos))
+      text.delete(pos, len)
+      operations.push({ op: 'delete', user, pos, len })
+    } else {
+      const delta = [
+        { retain: prng.int32(gen, 0, text.length) },
+        { insert: prng.oneOf(gen, ['x', 'y', 'z']), attributes: prng.oneOf(gen, [{ bold: true }, { color: 'red' }, {}]) }
+      ]
+      text.applyDelta(delta)
+      operations.push({ op: 'applyDelta', user, delta })
+    }
+  }
+
+  const localUpdates = docs.map(doc => Y.encodeStateAsUpdate(doc))
+  docs.forEach((doc, docIndex) => {
+    localUpdates.forEach((update, updateIndex) => {
+      if (docIndex !== updateIndex) {
+        Y.applyUpdate(doc, update)
+      }
+    })
+  })
+
+  return {
+    name: `seed-${seed}`,
+    seed,
+    users,
+    iterations,
+    operations,
+    deltas: docs.map(doc => doc.getText('text').toDelta()),
+    strings: docs.map(doc => doc.getText('text').toString()),
+    updateHexes: docs.map(doc => hex(Y.encodeStateAsUpdate(doc))),
+    stateVectorHexes: docs.map(doc => hex(Y.encodeStateVector(doc)))
+  }
+}
+
+const makeYTextConvergenceFixtures = () => ({
+  source: 'yjs/src/types/YText.js + yjs/tests/y-text.tests.js',
+  cases: [5, 30, 40, 42, 43, 44, 70, 90, 300, 500].map(seed => runYTextConvergenceCase(seed, 90, 3))
+})
+
 const materializeUpdateCodecInput = input => input.type === 'id'
   ? Y.createID(input.client, input.clock)
   : materialize(input)
@@ -918,6 +1048,14 @@ fs.writeFileSync(
 fs.writeFileSync(
   path.join(fixturesDir, 'ymap-convergence.json'),
   `${JSON.stringify(makeYMapConvergenceFixtures(), null, 2)}\n`
+)
+fs.writeFileSync(
+  path.join(fixturesDir, 'ytext-scenarios.json'),
+  `${JSON.stringify(makeYTextFixtures(), null, 2)}\n`
+)
+fs.writeFileSync(
+  path.join(fixturesDir, 'ytext-convergence.json'),
+  `${JSON.stringify(makeYTextConvergenceFixtures(), null, 2)}\n`
 )
 fs.writeFileSync(
   path.join(fixturesDir, 'update-codecs-v1.json'),

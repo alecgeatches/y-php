@@ -303,3 +303,24 @@ Use the next free `DEC-NNNN` number. Never edit a prior entry's decision; if it 
 - **Decision:** `tests/Unit/YMapTest.php` now ports the YMap unit and fuzz tests with real assertions. The JS production-only fuzz budgets (`5000`, `10000`, `100000`) remain skipped outside production. `testMapEventError` is adapted to first create an event and then assert post-transaction change computation fails; `event.value`/`event.name` are asserted as PHP `null` because Yjs v13.6.31's `YMapEvent` source does not define those properties. `tools/gen-fixtures.mjs` writes `tests/fixtures/ymap-convergence.json` as deterministic JS operation logs for 10 seeds, and `tests/Conformance/YMapConvergenceTest.php` replays them against PHP JSON, state-vector, and update bytes.
 - **Why:** The operation-log fixture style keeps byte-parity assertions independent from PHP internals and captures nested type writes whose clocks affect updates. The small unit-test adaptations reflect PHP's lack of JS `undefined` property access and the actual source shape of `YMapEvent`.
 - **Affects:** YMap conformance, future fixture regeneration, later event API work, and later milestones reusing `applyRandomTests()`.
+
+### DEC-0040 — YText rich-text helpers mirror JS as namespace functions plus cursor class
+- **Milestone:** M3
+- **Status:** accepted
+- **Decision:** Port `ItemTextListPosition` as `Yjs\Types\ItemTextListPosition`, and port the JS-local YText helpers as namespace functions in `src/functions.php`: `equalAttrs()`, `findPosition()`, `insertText()`, `formatText()`, `deleteText()`, `cleanupFormattingGap()`, `cleanupContextlessFormattingGap()`, `cleanupYTextFormatting()`, and `cleanupYTextAfterTransaction()`. `YText::$_pending` is an array of closures until integration, matching JS pending operations. Omitted `insert()` attributes are represented by PHP `null`, while an explicit attributes array remains explicit so inherited-format behavior matches JS.
+- **Why:** YText formatting item order is byte-sensitive. Keeping the JS cursor/helper split makes source comparison direct and preserves the distinction between omitted attributes (`undefined` in JS) and an explicit empty object.
+- **Affects:** YText, YXmlText when it reuses text behavior, observer delta generation, remote formatting cleanup, and any future text-related UndoManager work.
+
+### DEC-0041 — Snapshot value object and V1 snapshot codec are available for YText deltas
+- **Milestone:** M3
+- **Status:** accepted
+- **Decision:** Replace the `Snapshot` stub with `Yjs\Utils\Snapshot` carrying public `DeleteSet $ds` and ordered `array<int,int> $sv`, and implement `createSnapshot()`, `snapshot()`, `emptySnapshot()`, `isVisible()`, `splitSnapshotAffectedStructs()`, `encodeSnapshot()`, `decodeSnapshot()`, and `equalSnapshots()` for the V1 codec path. Full `createDocFromSnapshot()` and snapshot update-containment helpers remain deferred stubs.
+- **Why:** `YText::toDelta($snapshot, $prevSnapshot)` imports these primitives in the JS source and the y-text tests rely on ychange deltas. The V1 snapshot bytes are just delete-set plus state-vector encoding, so this could be implemented without starting later snapshot-restore scope.
+- **Affects:** YText snapshot deltas, future Snapshot tests, `compare()` parity when snapshot checks are restored, and any later V2 snapshot codec work.
+
+### DEC-0042 — YText fixtures and fuzz tests use PHP-scaled budgets
+- **Milestone:** M3
+- **Status:** accepted
+- **Decision:** `tools/gen-fixtures.mjs` now writes `tests/fixtures/ytext-scenarios.json` and `tests/fixtures/ytext-convergence.json`. The convergence fixture follows the M2.5/M2.6 operation-log pattern for 10 deterministic seeds and covers text insertion, formatting, deletion, embeds, and `applyDelta()`. `tests/Unit/YTextTest.php` replaces the translated red-baseline methods with real assertions; the JS `testRepeatGenerateQuillChanges2Repeat` 1000-repeat stress loop is scaled to 25 repeats in PHP, while byte-level multi-user coverage is pinned by the JS fixture seeds.
+- **Why:** PHP is slower than V8 (CONTEXT hazard 11), and the conformance fixture provides stronger byte-parity coverage than an oversized local stress loop. Keeping the method inventory avoids losing traceability to `yjs/tests/y-text.tests.js`.
+- **Affects:** YText conformance, fixture regeneration, future fuzz budgets, and later milestones that reuse `tests/Support/compare()` for text deltas.

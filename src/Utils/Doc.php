@@ -190,8 +190,10 @@ class Doc extends \Yjs\Lib0\Observable {
 				for ( $n = $newType->_start; null !== $n; $n = $n->right ) {
 					$n->parent = $newType;
 				}
-				$newType->_length     = $type->_length;
-				$this->share[ $name ] = $newType;
+				$newType->_length        = $type->_length;
+				$newType->_searchMarker  = $type->_searchMarker;
+				$newType->_hasFormatting = $type->_hasFormatting;
+				$this->share[ $name ]    = $newType;
 				$newType->_integrate( $this, null );
 				return $newType;
 			}
