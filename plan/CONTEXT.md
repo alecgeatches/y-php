@@ -29,6 +29,8 @@ A **PHP 7.4+** port of **Yjs v13.6.31** for server-side WordPress, with **full b
 
 ## Repository layout
 
+The **project/package root is `y-php/`**. Run Composer, PHPCS, PHPUnit, fixture generation, and any build/test commands from `y-php/`, and create implementation files under `y-php/src`, `y-php/tests`, and `y-php/tools`. The parent workspace (`/Users/alec/projects/yjs`) only contains sibling JS repositories used as source references; do not create PHP package files in the parent-level `src/`, `tests/`, or `tools/` directories.
+
 ```
 y-php/
 ├── composer.json            # PSR-4 autoload "Yjs\\" -> src/
@@ -98,7 +100,7 @@ Dev dependencies (`composer require --dev`):
 
 - `squizlabs/php_codesniffer` — `phpcs` / `phpcbf`
 - `wp-coding-standards/wpcs` (^3) — the WordPress ruleset
-- `phpcompatibility/phpcompatibilitywp` — flags code that breaks the PHP 7.4 floor (`testVersion`)
+- `phpcompatibility/phpcompatibility-wp` — flags code that breaks the PHP 7.4 floor (`testVersion`)
 - `dealerdirect/phpcodesniffer-composer-installer` — registers installed standards with PHPCS
 - `phpunit/phpunit` — the test runner
 - *(recommended)* `phpstan/phpstan` — compensates for 7.4's weaker native types via PHPDoc
@@ -119,11 +121,15 @@ Dev dependencies (`composer require --dev`):
     <exclude name="WordPress.NamingConventions.ValidFunctionName"/>
     <exclude name="WordPress.NamingConventions.ValidVariableName"/>
     <exclude name="WordPress.Files.FileName"/>
+    <exclude name="Generic.Commenting.DocComment.MissingShort"/>
+    <exclude name="Squiz.Commenting.FunctionComment.Missing"/>
+    <exclude name="Squiz.Commenting.FunctionCommentThrowTag.Missing"/>
+    <exclude name="Universal.NamingConventions.NoReservedKeywordParameterNames"/>
   </rule>
 </ruleset>
 ```
 
-If the `WordPress` docblock sniffs prove too noisy during the port, narrow the base to `WordPress-Extra`. Composer scripts: `test` → `phpunit`, `lint` → `phpcs`, `lint:fix` → `phpcbf`. Regenerate fixtures with `node tools/gen-fixtures.mjs`.
+M0 keeps the `WordPress` base but excludes docblock boilerplate and reserved-keyword parameter-name sniffs so the port can mirror lib0/Yjs names without drowning in non-behavioral comments. Composer scripts: `test` → `phpunit`, `lint` → `phpcs`, `lint:fix` → `phpcbf`. Regenerate fixtures with `node tools/gen-fixtures.mjs`.
 
 ## Testing — how the spec validates PHP
 

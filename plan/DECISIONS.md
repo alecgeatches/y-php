@@ -65,3 +65,59 @@ Use the next free `DEC-NNNN` number. Never edit a prior entry's decision; if it 
 - **Affects:** every milestone; the M0 tooling setup; the public API surface.
 
 <!-- New entries below this line -->
+
+### DEC-0006 — Build root is `y-php/`
+- **Milestone:** M0
+- **Status:** accepted
+- **Decision:** Treat `y-php/` as the Composer package root. Implementation files live under `y-php/src`, tests under `y-php/tests`, tools under `y-php/tools`; run `composer test`, `composer lint`, `composer lint:fix`, and `node tools/gen-fixtures.mjs` from `y-php/`.
+- **Why:** The parent workspace contains sibling JS repositories used as source references. Running patches or build commands from the parent can accidentally create parent-level `src/`, `tests/`, or `tools/` directories outside the PHP package.
+- **Affects:** all milestones and all local build/test instructions.
+
+### DEC-0007 — Buffer carrier is `Yjs\Lib0\Buffer`
+- **Milestone:** M0
+- **Status:** accepted
+- **Decision:** Use `Yjs\Lib0\Buffer` as the one wrapped `Uint8Array` representation. It stores bytes as a PHP binary `string` and exposes `fromBinaryString()`, `fromByteArray()`, `toBinaryString()`, `toByteArray()`, `byteLength()`, `get()`, `set()`, `slice()`, base64/base64url/hex helpers, and `copyUint8Array()`.
+- **Why:** The wire format is byte-oriented, and PHP strings are the most direct binary carrier. The wrapper keeps later code from mixing raw PHP strings and logical text accidentally.
+- **Affects:** all update encoders/decoders, content binary payloads, fixture readers, sync/update tests.
+
+### DEC-0008 — JavaScript 32-bit helpers live in `Yjs\Lib0\Binary`
+- **Milestone:** M0
+- **Status:** accepted
+- **Decision:** Implement JavaScript-style bit coercion in `Yjs\Lib0\Binary`: `toUint32()`, `toInt32()`, `unsignedRightShift()` for `>>>`, plus `shiftLeft32()`, `or32()`, and `xor32()` for PRNG and future clock/client-id logic.
+- **Why:** PHP integers are 64-bit and `>>` is arithmetic. Yjs/lib0 relies on JavaScript 32-bit bitwise coercion and unsigned right shift for deterministic encoding and PRNG output.
+- **Affects:** PRNG, update codecs, IDs/clocks, any code porting JS bitwise operators.
+
+### DEC-0009 — `undefined` uses a singleton carrier
+- **Milestone:** M0
+- **Status:** accepted
+- **Decision:** Decode lib0 `writeAny` tag `127` to `Yjs\Lib0\UndefinedValue::getInstance()`. `Encoding::writeAny()` recognizes that singleton and writes tag `127`; PHP `null` remains tag `126`.
+- **Why:** PHP has no native `undefined`, but lib0 distinguishes `undefined` from `null` on the wire. A singleton preserves the distinction without overloading `null`.
+- **Affects:** `writeAny`/`readAny`, JSON-like payloads, future map/text attribute handling.
+
+### DEC-0010 — BigInt64 uses a decimal-string carrier
+- **Milestone:** M0
+- **Status:** accepted
+- **Decision:** Represent lib0 bigint values with `Yjs\Lib0\BigInt64`, storing a signed decimal string. `Encoding::writeBigInt64()` accepts `BigInt64`, `int`, or decimal `string`; `Decoding::readBigInt64()` returns `BigInt64`. Conversion to bytes is big-endian signed 64-bit two's-complement.
+- **Why:** PHP 7.4 integers are platform 64-bit here, but a decimal-string carrier avoids crashing or losing the exact edge values when decoding `-9223372036854775808` and keeps the representation explicit for later agents.
+- **Affects:** `writeAny`/`readAny`, any future binary fixture or awareness payload containing bigint.
+
+### DEC-0011 — Floats use big-endian pack codes
+- **Milestone:** M0
+- **Status:** accepted
+- **Decision:** Use `pack('G', $num)` / `unpack('G', ...)` for `writeFloat32`/`readFloat32` and `pack('E', $num)` / `unpack('E', ...)` for `writeFloat64`/`readFloat64`.
+- **Why:** lib0 writes floats with `DataView` littleEndian `false`, i.e. network/big-endian byte order. Native-order PHP pack codes would break byte parity across platforms.
+- **Affects:** all lib0 primitive encoding, `writeAny` number dispatch, fixtures.
+
+### DEC-0012 — PRNG class names mirror lib0
+- **Milestone:** M0
+- **Status:** accepted
+- **Decision:** Port lib0 PRNG as `Yjs\Lib0\Xorshift32`, `Yjs\Lib0\Xoroshiro128plus`, and static helper module `Yjs\Lib0\Prng`. `Prng::create()` returns `Xoroshiro128plus`.
+- **Why:** Later fuzz/convergence tests depend on fixed seeds producing the same scenario as JS. Keeping the lib0 class names makes source comparison and fixture diagnosis direct.
+- **Affects:** all fuzz tests and any generated randomized test data in later milestones.
+
+### DEC-0013 — M0 PHPCS gate keeps WPCS but excludes doc/name noise
+- **Milestone:** M0
+- **Status:** accepted
+- **Decision:** `phpcs.xml.dist` uses `WordPress` + `PHPCompatibilityWP` with DEC-0005 exclusions, and additionally excludes `Generic.Commenting.DocComment.MissingShort`, `Squiz.Commenting.FunctionComment.Missing`, `Squiz.Commenting.FunctionCommentThrowTag.Missing`, and `Universal.NamingConventions.NoReservedKeywordParameterNames`. The Composer package is `phpcompatibility/phpcompatibility-wp`.
+- **Why:** The first M0 lint run showed docblock boilerplate and reserved JS parameter names dominating the signal. Excluding those keeps the lint gate focused on formatting, compatibility, and security while preserving camelCase/lib0 naming. Packagist exposes the PHPCompatibilityWP ruleset package as `phpcompatibility/phpcompatibility-wp`; the unhyphenated name is not installable.
+- **Affects:** all PHP code and future Composer installs/lint runs.
