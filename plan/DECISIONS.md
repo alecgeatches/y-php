@@ -380,3 +380,24 @@ Use the next free `DEC-NNNN` number. Never edit a prior entry's decision; if it 
 - **Decision:** `tools/gen-fixtures.mjs` writes `tests/fixtures/update-utilities-v1.json` from real JS Yjs. `tests/Conformance/UpdateUtilitiesV1Test.php` asserts `mergeUpdates()`, `diffUpdate()`, `encodeStateVectorFromUpdate()`, `parseUpdateMeta()`, snapshot bytes, and applying merged updates against those fixture bytes.
 - **Why:** The milestone requires merge/diff/snapshot/state-vector outputs to byte-match real JS. Direct fixtures catch byte-order and lazy-decoder drift that ordinary document convergence tests can miss.
 - **Affects:** Fixture regeneration, update utility conformance, and later M7 V2 fixture strategy.
+
+### DEC-0051 — Compatibility tests extract old V1 fixtures from the JS source
+- **Milestone:** M6
+- **Status:** accepted
+- **Decision:** `tests/Unit/CompatibilityTest.php` parses `oldDoc` and `oldVal` directly from `../yjs/tests/compatibility.tests.js`, then applies the base64 update with PHP and compares the materialized Array/Map/Text state after normalizing PHP `stdClass` values.
+- **Why:** The upstream compatibility test embeds very large v13.2.0 update blobs and expected JSON literals. Reading those literals from the JS source keeps the PHP test anchored to the exact upstream test without duplicating hundreds of lines of byte data by hand.
+- **Affects:** Compatibility tests, repository layout assumptions for running the port tests beside the sibling `yjs/` source, and any future update of `compatibility.tests.js` fixtures.
+
+### DEC-0052 — Real-client interop fixtures are browser-captured V1 updates
+- **Milestone:** M6
+- **Status:** accepted
+- **Decision:** Add `tests/fixtures/real-client/interop.html` as a deterministic browser fixture page that imports local `yjs/src/index.js` with an import map for `lib0/*`. Captured files are `browser-generated-update.bin` plus `browser-generated.json`, and `php-generated-update.bin` plus `php-generated-browser-applied.json`. `tests/Conformance/RealClientInteropTest.php` asserts PHP decoding/re-encoding of the browser update and fresh PHP regeneration of the browser-validated PHP update.
+- **Why:** M6 needs proof against a real JS browser client, not only Node-generated oracle fixtures. The static page lets Chromium execute the actual Yjs source while the PHP test remains deterministic from saved `.bin` captures.
+- **Affects:** Real-client interop coverage, fixture regeneration workflow, future browser fixture additions, and any later change to module serving/import-map assumptions.
+
+### DEC-0053 — Subdoc destroy replaces the content carrier doc like JS
+- **Milestone:** M6
+- **Status:** accepted
+- **Decision:** `Yjs\Utils\Doc::destroy()` now mirrors `yjs/src/utils/Doc.js`: when destroying an integrated subdocument, clear the old doc's `_item`, replace the `ContentDoc::$doc` carrier with a new `Doc` with the same guid/options and `shouldLoad => false`, attach that new doc to the item, and transact on the parent doc with the new doc in `subdocsAdded` and the old doc in `subdocsRemoved`.
+- **Why:** JS keeps a deleted/destroyed subdoc slot loadable by swapping in a fresh unloaded document. Without this, `subdocs.get(key)->destroy()`, subsequent `load()`, and remote update decoding cannot produce the expected `subdocs` add/remove/load event sequence.
+- **Affects:** Subdocument lifecycle events, `getSubdocGuids()`, update decoding of `ContentDoc`, future provider/autoload behavior, and undo/subdoc edge-case tests.

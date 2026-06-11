@@ -130,7 +130,86 @@ final class DocTest extends TestCase {
 	 * @return void
 	 */
 	public function testSubdoc(): void {
-		self::markTestSkipped( 'Full subdocument lifecycle assertions depend on later map/delete and provider semantics.' );
+		$doc = new Doc();
+		$doc->load();
+
+		$event   = null;
+		$toGuids = static function ( array $docs ): array {
+			return array_map(
+				static fn ( Doc $subdoc ): string => $subdoc->guid,
+				$docs
+			);
+		};
+		$doc->on(
+			'subdocs',
+			static function ( array $subdocs ) use ( &$event, $toGuids ): void {
+				$event = array(
+					$toGuids( $subdocs['added'] ),
+					$toGuids( $subdocs['removed'] ),
+					$toGuids( $subdocs['loaded'] ),
+				);
+			}
+		);
+
+		$subdocs = $doc->getMap( 'mysubdocs' );
+		$docA    = new Doc( array( 'guid' => 'a' ) );
+		$docA->load();
+		$subdocs->set( 'a', $docA );
+		self::assertSame( array( array( 'a' ), array(), array( 'a' ) ), $event );
+
+		$event = null;
+		$subdocs->get( 'a' )->load();
+		self::assertNull( $event );
+
+		$event = null;
+		$subdocs->get( 'a' )->destroy();
+		self::assertSame( array( array( 'a' ), array( 'a' ), array() ), $event );
+		$subdocs->get( 'a' )->load();
+		self::assertSame( array( array(), array(), array( 'a' ) ), $event );
+
+		$subdocs->set(
+			'b',
+			new Doc(
+				array(
+					'guid'       => 'a',
+					'shouldLoad' => false,
+				)
+			)
+		);
+		self::assertSame( array( array( 'a' ), array(), array() ), $event );
+		$subdocs->get( 'b' )->load();
+		self::assertSame( array( array(), array(), array( 'a' ) ), $event );
+
+		$docC = new Doc( array( 'guid' => 'c' ) );
+		$docC->load();
+		$subdocs->set( 'c', $docC );
+		self::assertSame( array( array( 'c' ), array(), array( 'c' ) ), $event );
+		self::assertSame( array( 'a', 'c' ), $doc->getSubdocGuids() );
+
+		$doc2  = new Doc();
+		$event = null;
+		self::assertSame( array(), iterator_to_array( $doc2->getSubdocs(), false ) );
+		$doc2->on(
+			'subdocs',
+			static function ( array $subdocs ) use ( &$event, $toGuids ): void {
+				$event = array(
+					$toGuids( $subdocs['added'] ),
+					$toGuids( $subdocs['removed'] ),
+					$toGuids( $subdocs['loaded'] ),
+				);
+			}
+		);
+
+		\Yjs\applyUpdate( $doc2, \Yjs\encodeStateAsUpdate( $doc ) );
+		self::assertSame( array( array( 'a', 'a', 'c' ), array(), array() ), $event );
+
+		$doc2->getMap( 'mysubdocs' )->get( 'a' )->load();
+		self::assertSame( array( array(), array(), array( 'a' ) ), $event );
+		self::assertSame( array( 'a', 'c' ), $doc2->getSubdocGuids() );
+
+		$doc2->getMap( 'mysubdocs' )->delete( 'a' );
+		self::assertSame( array( array(), array( 'a' ), array() ), $event );
+		self::assertSame( array( 'a', 'c' ), $doc2->getSubdocGuids() );
 	}
 
 	/**

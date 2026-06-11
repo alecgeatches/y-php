@@ -239,6 +239,31 @@ class Doc extends \Yjs\Lib0\Observable {
 		foreach ( $this->subdocs as $subdoc ) {
 			$subdoc->destroy();
 		}
+		$item = $this->_item;
+		if ( null !== $item ) {
+			$this->_item = null;
+			$content     = $item->content;
+			if ( $content instanceof \Yjs\Structs\ContentDoc ) {
+				$options               = get_object_vars( $content->opts );
+				$options['guid']       = $this->guid;
+				$options['shouldLoad'] = false;
+				$content->doc          = new self( $options );
+				$content->doc->_item   = $item;
+				\Yjs\transact(
+					$item->parent->doc,
+					function ( Transaction $transaction ) use ( $item, $content ): void {
+						if ( ! $item->deleted ) {
+							$transaction->subdocsAdded->attach( $content->doc );
+						}
+						$transaction->subdocsRemoved->attach( $this );
+					},
+					null,
+					true
+				);
+			}
+		}
+		$this->emit( 'destroyed', array( true ) );
+		$this->emit( 'destroy', array( $this ) );
 		parent::destroy();
 	}
 
