@@ -1,6 +1,6 @@
 <?php
 /**
- * ContentBinary public API stub.
+ * Binary item content.
  *
  * @package Yjs
  */
@@ -9,116 +9,111 @@ declare(strict_types=1);
 
 namespace Yjs\Structs;
 
+use Yjs\Lib0\Buffer;
+use Yjs\Lib0\Error;
+
 /**
- * ContentBinary API stub for the Yjs port red baseline.
+ * Port of yjs/src/structs/ContentBinary.js.
  */
 class ContentBinary {
-	use \Yjs\NotImplementedTrait;
+	/**
+	 * @var Buffer
+	 */
+	public Buffer $content;
 
 	/**
-	 * @param mixed ...$args Constructor arguments.
+	 * @param Buffer $content Binary content.
 	 */
-	public function __construct( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function __construct( Buffer $content ) {
+		$this->content = $content;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return int
 	 */
-	public function getLength( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function getLength(): int {
+		return 1;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return array<int,Buffer>
 	 */
-	public function getContent( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function getContent(): array {
+		return array( $this->content );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return bool
 	 */
-	public function isCountable( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function isCountable(): bool {
+		return true;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return ContentBinary
 	 */
-	public function copy( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function copy(): ContentBinary {
+		return new ContentBinary( $this->content );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @param int $offset Offset.
+	 * @return ContentBinary
 	 */
-	public function splice( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function splice( int $offset ): ContentBinary {
+		unset( $offset );
+		Error::methodUnimplemented();
+		return new ContentBinary( $this->content );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @param ContentBinary $right Right content.
+	 * @return bool
 	 */
-	public function mergeWith( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function mergeWith( ContentBinary $right ): bool {
+		unset( $right );
+		return false;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $transaction Transaction.
+	 * @param Item  $item        Item.
 	 * @return void
 	 */
-	public function integrate( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function integrate( $transaction, Item $item ): void {
+		unset( $transaction, $item );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $transaction Transaction.
 	 * @return void
 	 */
-	public function delete( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function delete( $transaction ): void {
+		unset( $transaction );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $store Struct store.
 	 * @return void
 	 */
-	public function gc( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function gc( $store ): void {
+		unset( $store );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $encoder Encoder.
+	 * @param int   $offset  Offset.
 	 * @return void
 	 */
-	public function write( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function write( $encoder, int $offset ): void {
+		unset( $offset );
+		$encoder->writeBuf( $this->content );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return int
 	 */
-	public function getRef( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function getRef(): int {
+		return 3;
 	}
 }

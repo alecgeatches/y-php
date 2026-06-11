@@ -16,29 +16,38 @@ class YMap extends AbstractType implements \IteratorAggregate {
 	use \Yjs\NotImplementedTrait;
 
 	/**
-	 * @param mixed ...$args Constructor arguments.
+	 * @var array<string,mixed>|null
 	 */
-	public function __construct( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public ?array $_prelimContent;
+
+	/**
+	 * @param iterable<string,mixed>|null $entries Initial entries.
+	 */
+	public function __construct( $entries = null ) {
+		parent::__construct();
+		$this->_prelimContent = array();
+		if ( null !== $entries ) {
+			foreach ( $entries as $key => $value ) {
+				$this->_prelimContent[ (string) $key ] = $value;
+			}
+		}
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param object                 $y    Y document.
+	 * @param \Yjs\Structs\Item|null $item Item.
 	 * @return void
 	 */
-	public function _integrate( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function _integrate( object $y, ?\Yjs\Structs\Item $item ): void {
+		parent::_integrate( $y, $item );
+		$this->_prelimContent = null;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return YMap
 	 */
-	public function _copy( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function _copy(): YMap {
+		return new YMap();
 	}
 
 	/**
@@ -150,12 +159,11 @@ class YMap extends AbstractType implements \IteratorAggregate {
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $encoder Encoder.
 	 * @return void
 	 */
-	public function _write( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function _write( $encoder ): void {
+		$encoder->writeTypeRef( 1 );
 	}
 
 	/**

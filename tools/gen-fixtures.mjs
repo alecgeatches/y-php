@@ -5,6 +5,24 @@ import * as encoding from '../../yjs/node_modules/lib0/encoding.js'
 import * as decoding from '../../yjs/node_modules/lib0/decoding.js'
 import * as prng from '../../yjs/node_modules/lib0/prng.js'
 import * as Y from '../../yjs/src/index.js'
+import { ContentAny, readContentAny } from '../../yjs/src/structs/ContentAny.js'
+import { ContentBinary, readContentBinary } from '../../yjs/src/structs/ContentBinary.js'
+import { ContentDeleted, readContentDeleted } from '../../yjs/src/structs/ContentDeleted.js'
+import { ContentDoc, readContentDoc } from '../../yjs/src/structs/ContentDoc.js'
+import { ContentEmbed, readContentEmbed } from '../../yjs/src/structs/ContentEmbed.js'
+import { ContentFormat, readContentFormat } from '../../yjs/src/structs/ContentFormat.js'
+import { ContentJSON, readContentJSON } from '../../yjs/src/structs/ContentJSON.js'
+import { ContentString, readContentString } from '../../yjs/src/structs/ContentString.js'
+import { ContentType, readContentType } from '../../yjs/src/structs/ContentType.js'
+import { GC } from '../../yjs/src/structs/GC.js'
+import { Skip } from '../../yjs/src/structs/Skip.js'
+import { YArray } from '../../yjs/src/types/YArray.js'
+import { YMap } from '../../yjs/src/types/YMap.js'
+import { YText } from '../../yjs/src/types/YText.js'
+import { YXmlElement } from '../../yjs/src/types/YXmlElement.js'
+import { YXmlFragment } from '../../yjs/src/types/YXmlFragment.js'
+import { YXmlHook } from '../../yjs/src/types/YXmlHook.js'
+import { YXmlText } from '../../yjs/src/types/YXmlText.js'
 import {
   DeleteItem as YDeleteItem,
   DeleteSet as YDeleteSet,
@@ -485,6 +503,262 @@ const makeDeleteSetFixtures = () => ({
   ]
 })
 
+const makeType = desc => {
+  switch (desc.name) {
+    case 'YArray':
+      return new YArray()
+    case 'YMap':
+      return new YMap()
+    case 'YText':
+      return new YText()
+    case 'YXmlElement':
+      return new YXmlElement(desc.nodeName)
+    case 'YXmlFragment':
+      return new YXmlFragment()
+    case 'YXmlHook':
+      return new YXmlHook(desc.hookName)
+    case 'YXmlText':
+      return new YXmlText()
+  }
+  throw new Error(`Unknown type descriptor: ${desc.name}`)
+}
+
+const typeDescriptor = type => {
+  if (type instanceof YXmlElement) {
+    return { name: 'YXmlElement', nodeName: type.nodeName }
+  }
+  if (type instanceof YXmlHook) {
+    return { name: 'YXmlHook', hookName: type.hookName }
+  }
+  if (type instanceof YXmlText) {
+    return { name: 'YXmlText' }
+  }
+  if (type instanceof YXmlFragment) {
+    return { name: 'YXmlFragment' }
+  }
+  if (type instanceof YArray) {
+    return { name: 'YArray' }
+  }
+  if (type instanceof YMap) {
+    return { name: 'YMap' }
+  }
+  if (type instanceof YText) {
+    return { name: 'YText' }
+  }
+  throw new Error(`Unable to describe type: ${type.constructor.name}`)
+}
+
+const makeContent = desc => {
+  switch (desc.kind) {
+    case 'ContentString':
+      return new ContentString(desc.str)
+    case 'ContentAny':
+      return new ContentAny(desc.arr.map(materialize))
+    case 'ContentJSON':
+      return new ContentJSON(desc.arr.map(materialize))
+    case 'ContentBinary':
+      return new ContentBinary(materialize(desc.content))
+    case 'ContentEmbed':
+      return new ContentEmbed(materialize(desc.embed))
+    case 'ContentFormat':
+      return new ContentFormat(desc.key, materialize(desc.value))
+    case 'ContentDeleted':
+      return new ContentDeleted(desc.len)
+    case 'ContentType':
+      return new ContentType(makeType(desc.type))
+    case 'ContentDoc': {
+      const opts = {}
+      for (const [key, value] of desc.opts ?? []) {
+        opts[key] = materialize(value)
+      }
+      return new ContentDoc(new Y.Doc({ guid: desc.guid, ...opts }))
+    }
+  }
+  throw new Error(`Unknown content kind: ${desc.kind}`)
+}
+
+const readContent = (kind, decoder) => {
+  switch (kind) {
+    case 'ContentString':
+      return readContentString(decoder)
+    case 'ContentAny':
+      return readContentAny(decoder)
+    case 'ContentJSON':
+      return readContentJSON(decoder)
+    case 'ContentBinary':
+      return readContentBinary(decoder)
+    case 'ContentEmbed':
+      return readContentEmbed(decoder)
+    case 'ContentFormat':
+      return readContentFormat(decoder)
+    case 'ContentDeleted':
+      return readContentDeleted(decoder)
+    case 'ContentType':
+      return readContentType(decoder)
+    case 'ContentDoc':
+      return readContentDoc(decoder)
+  }
+  throw new Error(`Unknown content reader: ${kind}`)
+}
+
+const contentDescriptor = content => {
+  if (content instanceof ContentString) {
+    return { kind: 'ContentString', str: content.str }
+  }
+  if (content instanceof ContentAny) {
+    return { kind: 'ContentAny', arr: content.arr.map(descriptor) }
+  }
+  if (content instanceof ContentJSON) {
+    return { kind: 'ContentJSON', arr: content.arr.map(descriptor) }
+  }
+  if (content instanceof ContentBinary) {
+    return { kind: 'ContentBinary', content: descriptor(content.content) }
+  }
+  if (content instanceof ContentEmbed) {
+    return { kind: 'ContentEmbed', embed: descriptor(content.embed) }
+  }
+  if (content instanceof ContentFormat) {
+    return { kind: 'ContentFormat', key: content.key, value: descriptor(content.value) }
+  }
+  if (content instanceof ContentDeleted) {
+    return { kind: 'ContentDeleted', len: content.len }
+  }
+  if (content instanceof ContentType) {
+    return { kind: 'ContentType', type: typeDescriptor(content.type) }
+  }
+  if (content instanceof ContentDoc) {
+    return {
+      kind: 'ContentDoc',
+      guid: content.doc.guid,
+      opts: Object.keys(content.opts).map(key => [key, descriptor(content.opts[key])])
+    }
+  }
+  throw new Error(`Unable to describe content: ${content.constructor.name}`)
+}
+
+const contentCase = (name, input, offset = 0) => {
+  const content = makeContent(input)
+  const encoder = new Y.UpdateEncoderV1()
+  content.write(encoder, offset)
+  const bytes = encoder.toUint8Array()
+  const decoder = new Y.UpdateDecoderV1(decoding.createDecoder(bytes))
+  const decoded = readContent(input.kind, decoder)
+  if (decoding.hasContent(decoder.restDecoder)) {
+    throw new Error(`Content fixture case ${name} left unread bytes`)
+  }
+
+  return {
+    name,
+    input,
+    offset,
+    decoded: contentDescriptor(decoded),
+    hex: hex(bytes),
+    ref: content.getRef(),
+    length: content.getLength()
+  }
+}
+
+const structCase = (name, struct, offset = 0) => {
+  const encoder = new Y.UpdateEncoderV1()
+  struct.write(encoder, offset)
+  return {
+    name,
+    kind: struct.constructor.name,
+    id: id(struct.id.client, struct.id.clock),
+    length: struct.length,
+    offset,
+    hex: hex(encoder.toUint8Array())
+  }
+}
+
+const makeStructContentFixtures = () => ({
+  source: 'yjs/src/structs/{AbstractStruct,GC,Skip,Content*}.js',
+  contentCases: [
+    contentCase('ContentString ascii', { kind: 'ContentString', str: 'hello' }),
+    contentCase('ContentString utf16 offset', { kind: 'ContentString', str: 'a\ud83d\ude0ab' }, 1),
+    contentCase('ContentAny writeAny matrix', {
+      kind: 'ContentAny',
+      arr: [
+        undef(),
+        nil(),
+        bool(true),
+        bool(false),
+        string('any-string'),
+        string('snow \u2603'),
+        specialNumber('-0'),
+        number(42),
+        number(-42),
+        number(2147483647),
+        number(2147483648),
+        number(2147483649),
+        number(1.5),
+        number(0.1),
+        specialNumber('NaN'),
+        bigint('-9223372036854775808'),
+        uint8array([5, 6, 7]),
+        array([number(1), string('two'), nil(), undef(), uint8array([9])]),
+        object([
+          ['alpha', number(1)],
+          ['beta', array([bool(true), string('ok')])],
+          ['gamma', object([['nested', nil()]])]
+        ]),
+        object([])
+      ]
+    }),
+    contentCase('ContentAny offset', { kind: 'ContentAny', arr: [number(1), string('two'), bool(false)] }, 1),
+    contentCase('ContentJSON values', {
+      kind: 'ContentJSON',
+      arr: [
+        undef(),
+        nil(),
+        bool(true),
+        number(1),
+        number(0.1),
+        specialNumber('NaN'),
+        object([
+          ['url', string('https://example.com/a/b')],
+          ['snow', string('\u2603')],
+          ['arr', array([number(1), nil(), undef()])],
+          ['omit', undef()]
+        ])
+      ]
+    }),
+    contentCase('ContentBinary bytes', { kind: 'ContentBinary', content: uint8array([0, 1, 127, 128, 255]) }),
+    contentCase('ContentEmbed object', {
+      kind: 'ContentEmbed',
+      embed: object([
+        ['src', string('https://example.com/a/b')],
+        ['dims', object([['w', number(640)], ['h', number(480)]])]
+      ])
+    }),
+    contentCase('ContentFormat key value', { kind: 'ContentFormat', key: 'bold/style', value: object([['enabled', bool(true)]]) }),
+    contentCase('ContentDeleted len', { kind: 'ContentDeleted', len: 16384 }),
+    contentCase('ContentType YArray', { kind: 'ContentType', type: { name: 'YArray' } }),
+    contentCase('ContentType YMap', { kind: 'ContentType', type: { name: 'YMap' } }),
+    contentCase('ContentType YText', { kind: 'ContentType', type: { name: 'YText' } }),
+    contentCase('ContentType YXmlElement', { kind: 'ContentType', type: { name: 'YXmlElement', nodeName: 'paragraph' } }),
+    contentCase('ContentType YXmlFragment', { kind: 'ContentType', type: { name: 'YXmlFragment' } }),
+    contentCase('ContentType YXmlHook', { kind: 'ContentType', type: { name: 'YXmlHook', hookName: 'hook-name' } }),
+    contentCase('ContentType YXmlText', { kind: 'ContentType', type: { name: 'YXmlText' } }),
+    contentCase('ContentDoc default opts', { kind: 'ContentDoc', guid: 'doc-guid-default', opts: [] }),
+    contentCase('ContentDoc encoded opts', {
+      kind: 'ContentDoc',
+      guid: 'doc-guid-opts',
+      opts: [
+        ['gc', bool(false)],
+        ['autoLoad', bool(true)],
+        ['meta', object([['role', string('child')]])]
+      ]
+    })
+  ],
+  structCases: [
+    structCase('GC write full', new GC(Y.createID(42, 7), 5)),
+    structCase('GC write offset', new GC(Y.createID(42, 7), 5), 2),
+    structCase('Skip write full', new Skip(Y.createID(7, 9), 16384)),
+    structCase('Skip write offset', new Skip(Y.createID(7, 9), 16384), 3)
+  ]
+})
+
 fs.mkdirSync(fixturesDir, { recursive: true })
 fs.writeFileSync(
   path.join(fixturesDir, 'encoding-primitives.json'),
@@ -505,4 +779,8 @@ fs.writeFileSync(
 fs.writeFileSync(
   path.join(fixturesDir, 'delete-set-v1.json'),
   `${JSON.stringify(makeDeleteSetFixtures(), null, 2)}\n`
+)
+fs.writeFileSync(
+  path.join(fixturesDir, 'struct-content.json'),
+  `${JSON.stringify(makeStructContentFixtures(), null, 2)}\n`
 )

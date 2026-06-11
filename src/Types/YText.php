@@ -16,29 +16,30 @@ class YText extends AbstractType {
 	use \Yjs\NotImplementedTrait;
 
 	/**
-	 * @param mixed ...$args Constructor arguments.
+	 * @var string
 	 */
-	public function __construct( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public string $_pending;
+
+	/**
+	 * @var bool
+	 */
+	public bool $_hasFormatting;
+
+	/**
+	 * @param string $string Initial text.
+	 */
+	public function __construct( string $string = '' ) {
+		parent::__construct();
+		$this->_pending       = $string;
+		$this->_searchMarker  = array();
+		$this->_hasFormatting = false;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return YText
 	 */
-	public function _integrate( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
-	}
-
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function _copy( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function _copy(): YText {
+		return new YText();
 	}
 
 	/**
@@ -168,11 +169,10 @@ class YText extends AbstractType {
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $encoder Encoder.
 	 * @return void
 	 */
-	public function _write( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function _write( $encoder ): void {
+		$encoder->writeTypeRef( 2 );
 	}
 }

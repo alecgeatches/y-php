@@ -191,3 +191,31 @@ Use the next free `DEC-NNNN` number. Never edit a prior entry's decision; if it 
 - **Decision:** `Yjs\writeDeleteSet()` and `Yjs\readDeleteSet()` accept native `object` parameters instead of V1-only class typehints. They still exercise `DSEncoderV1`/`DSDecoderV1` today, but the call shape matches JS's `DSEncoderV1 | DSEncoderV2` and `DSDecoderV1 | DSDecoderV2` helpers.
 - **Why:** PHP 7.4 has no native union types, and `UpdateEncoderV2`/`UpdateDecoderV2` are deliberately deferred stubs per DEC-0003/DEC-0018. A V1-only typehint would force M7 to change the public/internal helper signature just to add V2 support.
 - **Affects:** M7 V2 codecs, snapshot/delete-set encoding, update integration, and any code calling delete-set wire helpers.
+
+### DEC-0024 — ContentString stores UTF-8 while counting UTF-16 code units
+- **Milestone:** M2.3
+- **Status:** accepted
+- **Decision:** `Yjs\Structs\ContentString::$str` remains a PHP UTF-8 string, but `getLength()`, `write($encoder, $offset)`, and `splice($offset)` interpret offsets as JavaScript UTF-16 code units. Splitting inside a surrogate pair yields U+FFFD replacement characters on each side, matching Yjs's invalid-surrogate guard. PHP cannot naturally expose JS's lone surrogate strings from `str.split('')`, so `getContent()` returns UTF-8 string slices with U+FFFD for partial code points.
+- **Why:** Yjs uses `String.length`, `slice()`, and a surrogate-pair replacement guard. Update bytes depend on UTF-16 offsets, while PHP strings are byte/UTF-8 carriers.
+- **Affects:** Item splitting, text insertion/deletion, snapshot/list materialization, and any future code using `ContentString::getContent()`.
+
+### DEC-0025 — Content readers are namespace helpers; type/doc shells are byte-surface only
+- **Milestone:** M2.3
+- **Status:** accepted
+- **Decision:** Add JS module helper equivalents as namespace functions in `src/functions.php`: `readItemContent()`, all `readContent*()`, and `readYArray()`/`readYMap()`/`readYText()`/`readYXml*()`. The concrete type classes and `Doc` now expose only the minimal constructor, `_copy()`, `_integrate()`, `_write()`, and field surface needed by `ContentType`/`ContentDoc` byte encode/decode. Full list/map/text/xml editing and transaction behavior remains M2.4+ work.
+- **Why:** DEC-0014 already chose namespace functions for JS module helpers. `ContentType` and `ContentDoc` need real read/write/copy behavior in M2.3, but their live integration depends on the type/doc runtime scheduled for M2.4.
+- **Affects:** M2.4 update integration, type implementations, item decoding, and any code reading content refs.
+
+### DEC-0026 — ContentDoc options use stdClass object semantics
+- **Milestone:** M2.3
+- **Status:** accepted
+- **Decision:** `Yjs\Structs\ContentDoc::$opts` is a `stdClass`, not an array, so `UpdateEncoderV1::writeAny()` emits the JS object tag for `{}` and preserves object key insertion order. `ContentDoc::createDocFromOpts($guid, $opts)` normalizes decoded options and sets `shouldLoad` to `opts.shouldLoad || opts.autoLoad || false`, mirroring JS.
+- **Why:** PHP empty arrays encode as lib0 arrays, while JS subdoc options are plain objects. The empty-options case must encode as `{}` on the wire.
+- **Affects:** Subdocument encoding, future subdoc lifecycle work, fixture generation, and any code constructing `ContentDoc` from decoded updates.
+
+### DEC-0027 — WPCS underscore-property sniff is excluded for JS parity
+- **Milestone:** M2.3
+- **Status:** accepted
+- **Decision:** `phpcs.xml.dist` now excludes `PSR2.Classes.PropertyDeclaration.Underscore` in addition to the existing method-underscore exclusion.
+- **Why:** Yjs's core type/doc state is carried in underscore-prefixed properties such as `_item`, `_map`, `_start`, `_length`, `_searchMarker`, `_prelimContent`, and `_transactionCleanups`. Renaming them would obscure source parity and make later ports harder to compare.
+- **Affects:** All type/doc ports, transaction/runtime work, and WPCS lint behavior.

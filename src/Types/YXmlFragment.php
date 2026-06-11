@@ -16,29 +16,30 @@ class YXmlFragment extends AbstractType {
 	use \Yjs\NotImplementedTrait;
 
 	/**
-	 * @param mixed ...$args Constructor arguments.
+	 * @var array<int,mixed>|null
 	 */
-	public function __construct( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public ?array $_prelimContent;
+
+	public function __construct() {
+		parent::__construct();
+		$this->_prelimContent = array();
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param object                 $y    Y document.
+	 * @param \Yjs\Structs\Item|null $item Item.
 	 * @return void
 	 */
-	public function _integrate( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function _integrate( object $y, ?\Yjs\Structs\Item $item ): void {
+		parent::_integrate( $y, $item );
+		$this->_prelimContent = null;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return YXmlFragment
 	 */
-	public function _copy( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function _copy(): YXmlFragment {
+		return new YXmlFragment();
 	}
 
 	/**
@@ -195,11 +196,10 @@ class YXmlFragment extends AbstractType {
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $encoder Encoder.
 	 * @return void
 	 */
-	public function _write( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function _write( $encoder ): void {
+		$encoder->writeTypeRef( 4 );
 	}
 }

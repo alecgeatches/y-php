@@ -1,6 +1,6 @@
 <?php
 /**
- * ContentAny public API stub.
+ * Arbitrary item content.
  *
  * @package Yjs
  */
@@ -10,115 +10,110 @@ declare(strict_types=1);
 namespace Yjs\Structs;
 
 /**
- * ContentAny API stub for the Yjs port red baseline.
+ * Port of yjs/src/structs/ContentAny.js.
  */
 class ContentAny {
-	use \Yjs\NotImplementedTrait;
+	/**
+	 * @var array<int,mixed>
+	 */
+	public array $arr;
 
 	/**
-	 * @param mixed ...$args Constructor arguments.
+	 * @param array<int,mixed> $arr Content array.
 	 */
-	public function __construct( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function __construct( array $arr ) {
+		$this->arr = $arr;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return int
 	 */
-	public function getLength( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function getLength(): int {
+		return count( $this->arr );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return array<int,mixed>
 	 */
-	public function getContent( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function getContent(): array {
+		return $this->arr;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return bool
 	 */
-	public function isCountable( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function isCountable(): bool {
+		return true;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return ContentAny
 	 */
-	public function copy( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function copy(): ContentAny {
+		return new ContentAny( $this->arr );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @param int $offset Offset.
+	 * @return ContentAny
 	 */
-	public function splice( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function splice( int $offset ): ContentAny {
+		$right     = new ContentAny( array_slice( $this->arr, $offset ) );
+		$this->arr = array_slice( $this->arr, 0, $offset );
+		return $right;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @param ContentAny $right Right content.
+	 * @return bool
 	 */
-	public function mergeWith( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function mergeWith( ContentAny $right ): bool {
+		$this->arr = array_merge( $this->arr, $right->arr );
+		return true;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $transaction Transaction.
+	 * @param Item  $item        Item.
 	 * @return void
 	 */
-	public function integrate( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function integrate( $transaction, Item $item ): void {
+		unset( $transaction, $item );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $transaction Transaction.
 	 * @return void
 	 */
-	public function delete( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function delete( $transaction ): void {
+		unset( $transaction );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $store Struct store.
 	 * @return void
 	 */
-	public function gc( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function gc( $store ): void {
+		unset( $store );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $encoder Encoder.
+	 * @param int   $offset  Offset.
 	 * @return void
 	 */
-	public function write( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function write( $encoder, int $offset ): void {
+		$len = count( $this->arr );
+		$encoder->writeLen( $len - $offset );
+		for ( $i = $offset; $i < $len; $i++ ) {
+			$encoder->writeAny( $this->arr[ $i ] );
+		}
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return int
 	 */
-	public function getRef( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function getRef(): int {
+		return 8;
 	}
 }

@@ -1,6 +1,6 @@
 <?php
 /**
- * ContentFormat public API stub.
+ * Formatting item content.
  *
  * @package Yjs
  */
@@ -9,116 +9,122 @@ declare(strict_types=1);
 
 namespace Yjs\Structs;
 
+use Yjs\Lib0\Error;
+
 /**
- * ContentFormat API stub for the Yjs port red baseline.
+ * Port of yjs/src/structs/ContentFormat.js.
  */
 class ContentFormat {
-	use \Yjs\NotImplementedTrait;
+	/**
+	 * @var string
+	 */
+	public string $key;
 
 	/**
-	 * @param mixed ...$args Constructor arguments.
+	 * @var mixed
 	 */
-	public function __construct( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public $value;
+
+	/**
+	 * @param string $key   Format key.
+	 * @param mixed  $value Format value.
+	 */
+	public function __construct( string $key, $value ) {
+		$this->key   = $key;
+		$this->value = $value;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return int
 	 */
-	public function getLength( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function getLength(): int {
+		return 1;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return array<int,mixed>
 	 */
-	public function getContent( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function getContent(): array {
+		return array();
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return bool
 	 */
-	public function isCountable( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function isCountable(): bool {
+		return false;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return ContentFormat
 	 */
-	public function copy( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function copy(): ContentFormat {
+		return new ContentFormat( $this->key, $this->value );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @param int $offset Offset.
+	 * @return ContentFormat
 	 */
-	public function splice( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function splice( int $offset ): ContentFormat {
+		unset( $offset );
+		Error::methodUnimplemented();
+		return new ContentFormat( $this->key, $this->value );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @param ContentFormat $right Right content.
+	 * @return bool
 	 */
-	public function mergeWith( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function mergeWith( ContentFormat $right ): bool {
+		unset( $right );
+		return false;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $transaction Transaction.
+	 * @param Item  $item        Item.
 	 * @return void
 	 */
-	public function integrate( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function integrate( $transaction, Item $item ): void {
+		unset( $transaction );
+		if ( is_object( $item->parent ) ) {
+			$item->parent->_searchMarker  = null;
+			$item->parent->_hasFormatting = true;
+		}
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $transaction Transaction.
 	 * @return void
 	 */
-	public function delete( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function delete( $transaction ): void {
+		unset( $transaction );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $store Struct store.
 	 * @return void
 	 */
-	public function gc( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function gc( $store ): void {
+		unset( $store );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $encoder Encoder.
+	 * @param int   $offset  Offset.
 	 * @return void
 	 */
-	public function write( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function write( $encoder, int $offset ): void {
+		unset( $offset );
+		$encoder->writeKey( $this->key );
+		$encoder->writeJSON( $this->value );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return int
 	 */
-	public function getRef( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function getRef(): int {
+		return 6;
 	}
 }

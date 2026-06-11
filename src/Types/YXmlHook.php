@@ -16,20 +16,23 @@ class YXmlHook extends YMap {
 	use \Yjs\NotImplementedTrait;
 
 	/**
-	 * @param mixed ...$args Constructor arguments.
+	 * @var string
 	 */
-	public function __construct( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public string $hookName;
+
+	/**
+	 * @param string $hookName Hook name.
+	 */
+	public function __construct( string $hookName ) {
+		parent::__construct();
+		$this->hookName = $hookName;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return YXmlHook
 	 */
-	public function _copy( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function _copy(): YXmlHook {
+		return new YXmlHook( $this->hookName );
 	}
 
 	/**
@@ -51,11 +54,11 @@ class YXmlHook extends YMap {
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $encoder Encoder.
 	 * @return void
 	 */
-	public function _write( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function _write( $encoder ): void {
+		$encoder->writeTypeRef( 5 );
+		$encoder->writeKey( $this->hookName );
 	}
 }

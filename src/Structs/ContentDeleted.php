@@ -1,6 +1,6 @@
 <?php
 /**
- * ContentDeleted public API stub.
+ * Deleted item content.
  *
  * @package Yjs
  */
@@ -10,115 +10,107 @@ declare(strict_types=1);
 namespace Yjs\Structs;
 
 /**
- * ContentDeleted API stub for the Yjs port red baseline.
+ * Port of yjs/src/structs/ContentDeleted.js.
  */
 class ContentDeleted {
-	use \Yjs\NotImplementedTrait;
+	/**
+	 * @var int
+	 */
+	public int $len;
 
 	/**
-	 * @param mixed ...$args Constructor arguments.
+	 * @param int $len Deleted length.
 	 */
-	public function __construct( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function __construct( int $len ) {
+		$this->len = $len;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return int
 	 */
-	public function getLength( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function getLength(): int {
+		return $this->len;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return array<int,mixed>
 	 */
-	public function getContent( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function getContent(): array {
+		return array();
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return bool
 	 */
-	public function isCountable( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function isCountable(): bool {
+		return false;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return ContentDeleted
 	 */
-	public function copy( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function copy(): ContentDeleted {
+		return new ContentDeleted( $this->len );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @param int $offset Offset.
+	 * @return ContentDeleted
 	 */
-	public function splice( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function splice( int $offset ): ContentDeleted {
+		$right     = new ContentDeleted( $this->len - $offset );
+		$this->len = $offset;
+		return $right;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @param ContentDeleted $right Right content.
+	 * @return bool
 	 */
-	public function mergeWith( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function mergeWith( ContentDeleted $right ): bool {
+		$this->len += $right->len;
+		return true;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $transaction Transaction.
+	 * @param Item  $item        Item.
 	 * @return void
 	 */
-	public function integrate( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function integrate( $transaction, Item $item ): void {
+		\Yjs\addToDeleteSet( $transaction->deleteSet, $item->id->client, $item->id->clock, $this->len );
+		$item->markDeleted();
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $transaction Transaction.
 	 * @return void
 	 */
-	public function delete( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function delete( $transaction ): void {
+		unset( $transaction );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $store Struct store.
 	 * @return void
 	 */
-	public function gc( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function gc( $store ): void {
+		unset( $store );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $encoder Encoder.
+	 * @param int   $offset  Offset.
 	 * @return void
 	 */
-	public function write( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function write( $encoder, int $offset ): void {
+		$encoder->writeLen( $this->len - $offset );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return int
 	 */
-	public function getRef( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function getRef(): int {
+		return 1;
 	}
 }

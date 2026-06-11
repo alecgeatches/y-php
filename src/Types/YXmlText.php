@@ -16,20 +16,10 @@ class YXmlText extends YText {
 	use \Yjs\NotImplementedTrait;
 
 	/**
-	 * @param mixed ...$args Constructor arguments.
+	 * @return YXmlText
 	 */
-	public function __construct( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
-	}
-
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function _copy( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function _copy(): YXmlText {
+		return new YXmlText();
 	}
 
 	/**
@@ -69,11 +59,10 @@ class YXmlText extends YText {
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $encoder Encoder.
 	 * @return void
 	 */
-	public function _write( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function _write( $encoder ): void {
+		$encoder->writeTypeRef( 6 );
 	}
 }
