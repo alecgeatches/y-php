@@ -170,3 +170,24 @@ Use the next free `DEC-NNNN` number. Never edit a prior entry's decision; if it 
 - **Decision:** `UpdateEncoderV1::writeJSON()` serializes with JS-compatible JSON string bytes: `JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE`, top-level `UndefinedValue` writes the string `undefined`, undefined array entries become `null`, undefined object properties are omitted, non-finite floats become `null`, negative zero becomes `0`, and `BigInt64` throws. `UpdateDecoderV1::readJSON()` decodes to PHP `stdClass`/arrays/scalars via `json_decode()` and throws on parse errors.
 - **Why:** V1 stores JSON by first applying `JSON.stringify()` and then `writeVarString()`. PHP's default `json_encode()` escapes slashes and Unicode differently from JS, which would change update bytes for ordinary embeds.
 - **Affects:** ContentEmbed, ContentJSON-adjacent logic, V1 update fixtures, and any later code using `writeJSON`/`readJSON`.
+
+### DEC-0021 — StructStore and DeleteSet maps are ordered PHP arrays
+- **Milestone:** M2.2
+- **Status:** accepted
+- **Decision:** Represent `StructStore::$clients` and `DeleteSet::$clients` as insertion-ordered PHP arrays keyed by integer client id. `getStateVector()` iterates store clients in insertion order, while `writeDeleteSet()` builds a temporary entry list and sorts clients descending by id before writing, matching `Array.from(ds.clients.entries()).sort((a, b) => b[0] - a[0])`.
+- **Why:** JS `Map` preserves insertion order, but delete-set encoding deliberately overrides that order for deterministic bytes. PHP arrays preserve insertion order for integer keys and keep the implementation byte-compatible without adding a separate map abstraction.
+- **Affects:** state-vector encoding, update encoding, delete-set merge/equality, and any later code that iterates store or delete-set clients.
+
+### DEC-0022 — M2.2 introduces only the minimal struct item surface needed for store splitting
+- **Milestone:** M2.2
+- **Status:** accepted
+- **Decision:** `AbstractStruct`, `Item`, `GC`, and `Skip` now expose real `id`, `length`, and JS-style computed properties needed by `StructStore`/`DeleteSet`; `Yjs\splitItem()` mirrors the JS split logic and expects item content objects to provide `getLength()`, `isCountable()`, and `splice()`. Full item integration, content encoding, and type-parent behavior remain for the later struct/content milestones.
+- **Why:** `getItemCleanStart()`, `getItemCleanEnd()`, and `iterateStructs()` cannot be byte- or behavior-tested without actual item splitting, but porting all of `Item.js` and every content class would exceed M2.2. The minimal surface preserves constructor/class shape while leaving unimplemented behavior explicit.
+- **Affects:** M2.3 structs/content, M2.4 update integration, delete application, GC, and any test helper that constructs items directly.
+
+### DEC-0023 — Delete-set codec helpers use object parameters for future V2 parity
+- **Milestone:** M2.2
+- **Status:** accepted
+- **Decision:** `Yjs\writeDeleteSet()` and `Yjs\readDeleteSet()` accept native `object` parameters instead of V1-only class typehints. They still exercise `DSEncoderV1`/`DSDecoderV1` today, but the call shape matches JS's `DSEncoderV1 | DSEncoderV2` and `DSDecoderV1 | DSDecoderV2` helpers.
+- **Why:** PHP 7.4 has no native union types, and `UpdateEncoderV2`/`UpdateDecoderV2` are deliberately deferred stubs per DEC-0003/DEC-0018. A V1-only typehint would force M7 to change the public/internal helper signature just to add V2 support.
+- **Affects:** M7 V2 codecs, snapshot/delete-set encoding, update integration, and any code calling delete-set wire helpers.

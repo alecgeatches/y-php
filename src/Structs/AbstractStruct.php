@@ -1,6 +1,6 @@
 <?php
 /**
- * AbstractStruct public API stub.
+ * Abstract CRDT struct.
  *
  * @package Yjs
  */
@@ -9,44 +9,84 @@ declare(strict_types=1);
 
 namespace Yjs\Structs;
 
+use Yjs\Lib0\Error;
+use Yjs\Utils\ID;
+
 /**
- * AbstractStruct API stub for the Yjs port red baseline.
+ * Port of yjs/src/structs/AbstractStruct.js.
  */
 class AbstractStruct {
-	use \Yjs\NotImplementedTrait;
+	/**
+	 * Struct id.
+	 *
+	 * @var ID
+	 */
+	public ID $id;
 
 	/**
-	 * @param mixed ...$args Constructor arguments.
+	 * Struct length.
+	 *
+	 * @var int
 	 */
-	public function __construct( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public int $length;
+
+	/**
+	 * @param ID  $id     Struct id.
+	 * @param int $length Struct length.
+	 */
+	public function __construct( ID $id, int $length ) {
+		$this->id     = $id;
+		$this->length = $length;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @param string $name Property name.
+	 * @return mixed
 	 */
-	public function mergeWith( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function __get( string $name ) {
+		if ( 'deleted' === $name ) {
+			return $this->getDeleted();
+		}
+
+		unset( $name );
+		throw Error::create( 'Undefined property.' );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return bool
 	 */
-	public function write( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	protected function getDeleted(): bool {
+		Error::methodUnimplemented();
+		return false;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param AbstractStruct $right Struct to the right.
+	 * @return bool
+	 */
+	public function mergeWith( AbstractStruct $right ): bool {
+		unset( $right );
+		return false;
+	}
+
+	/**
+	 * @param mixed $encoder     Encoder.
+	 * @param int   $offset      Struct offset.
+	 * @param int   $encodingRef Encoding ref.
 	 * @return void
 	 */
-	public function integrate( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function write( $encoder, int $offset, int $encodingRef = 0 ): void {
+		unset( $encoder, $offset, $encodingRef );
+		Error::methodUnimplemented();
+	}
+
+	/**
+	 * @param mixed $transaction Transaction.
+	 * @param int   $offset      Struct offset.
+	 * @return void
+	 */
+	public function integrate( $transaction, int $offset ): void {
+		unset( $transaction, $offset );
+		Error::methodUnimplemented();
 	}
 }

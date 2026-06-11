@@ -1,6 +1,6 @@
 <?php
 /**
- * DeleteSet public API stub.
+ * Delete set.
  *
  * @package Yjs
  */
@@ -10,16 +10,13 @@ declare(strict_types=1);
 namespace Yjs\Utils;
 
 /**
- * DeleteSet API stub for the Yjs port red baseline.
+ * Port of yjs/src/utils/DeleteSet.js.
  */
 class DeleteSet {
-	use \Yjs\NotImplementedTrait;
-
 	/**
-	 * @param mixed ...$args Constructor arguments.
+	 * Delete items keyed by client id.
+	 *
+	 * @var array<int,array<int,DeleteItem>>
 	 */
-	public function __construct( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
-	}
+	public array $clients = array();
 }

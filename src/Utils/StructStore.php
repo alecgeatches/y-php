@@ -1,6 +1,6 @@
 <?php
 /**
- * StructStore public API stub.
+ * Struct store.
  *
  * @package Yjs
  */
@@ -10,16 +10,23 @@ declare(strict_types=1);
 namespace Yjs\Utils;
 
 /**
- * StructStore API stub for the Yjs port red baseline.
+ * Port of yjs/src/utils/StructStore.js.
  */
 class StructStore {
-	use \Yjs\NotImplementedTrait;
+	/**
+	 * Per-client structs, keyed by client id.
+	 *
+	 * @var array<int,array<int,\Yjs\Structs\AbstractStruct>>
+	 */
+	public array $clients = array();
 
 	/**
-	 * @param mixed ...$args Constructor arguments.
+	 * @var array{missing:array<int,int>,update:\Yjs\Lib0\Buffer}|null
 	 */
-	public function __construct( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
-	}
+	public ?array $pendingStructs = null;
+
+	/**
+	 * @var \Yjs\Lib0\Buffer|null
+	 */
+	public $pendingDs = null;
 }

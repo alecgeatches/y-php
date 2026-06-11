@@ -1,6 +1,6 @@
 <?php
 /**
- * GC public API stub.
+ * Garbage-collected struct.
  *
  * @package Yjs
  */
@@ -9,62 +9,70 @@ declare(strict_types=1);
 
 namespace Yjs\Structs;
 
+use Yjs\Lib0\Encoding;
+
+const STRUCT_GC_REF_NUMBER = 0;
+
 /**
- * GC API stub for the Yjs port red baseline.
+ * Port of yjs/src/structs/GC.js.
  */
 class GC extends AbstractStruct {
-	use \Yjs\NotImplementedTrait;
-
 	/**
-	 * @param mixed ...$args Constructor arguments.
+	 * @return bool
 	 */
-	public function __construct( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	protected function getDeleted(): bool {
+		return true;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
 	 * @return void
 	 */
-	public function delete( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function delete(): void {}
+
+	/**
+	 * @param AbstractStruct $right Struct to merge.
+	 * @return bool
+	 */
+	public function mergeWith( AbstractStruct $right ): bool {
+		if ( self::class !== get_class( $right ) ) {
+			return false;
+		}
+		$this->length += $right->length;
+		return true;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $transaction Transaction.
+	 * @param int   $offset      Offset.
 	 * @return void
 	 */
-	public function mergeWith( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function integrate( $transaction, int $offset ): void {
+		if ( 0 < $offset ) {
+			$this->id->clock += $offset;
+			$this->length    -= $offset;
+		}
+		\Yjs\addStruct( $transaction->doc->store, $this );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $encoder Encoder.
+	 * @param int   $offset  Offset.
+	 * @param int   $unused  Unused encoding ref.
 	 * @return void
 	 */
-	public function integrate( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function write( $encoder, int $offset, int $unused = 0 ): void {
+		unset( $unused );
+		$encoder->writeInfo( STRUCT_GC_REF_NUMBER );
+		$encoder->writeLen( $this->length - $offset );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @param mixed $transaction Transaction.
+	 * @param mixed $store       Store.
+	 * @return null
 	 */
-	public function write( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
-	}
-
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function getMissing( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function getMissing( $transaction, $store ) {
+		unset( $transaction, $store );
+		return null;
 	}
 }

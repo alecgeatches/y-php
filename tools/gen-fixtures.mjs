@@ -5,6 +5,12 @@ import * as encoding from '../../yjs/node_modules/lib0/encoding.js'
 import * as decoding from '../../yjs/node_modules/lib0/decoding.js'
 import * as prng from '../../yjs/node_modules/lib0/prng.js'
 import * as Y from '../../yjs/src/index.js'
+import {
+  DeleteItem as YDeleteItem,
+  DeleteSet as YDeleteSet,
+  readDeleteSet as yReadDeleteSet,
+  writeDeleteSet as yWriteDeleteSet
+} from '../../yjs/src/utils/DeleteSet.js'
 import { readID as yReadID, writeID as yWriteID } from '../../yjs/src/utils/ID.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -429,6 +435,56 @@ const makeUpdateCodecFixtures = () => ({
   ]
 })
 
+const deleteSetDescriptor = ds => Array.from(ds.clients.entries()).map(([client, deletes]) => ({
+  client,
+  deletes: deletes.map(item => ({ clock: item.clock, len: item.len }))
+}))
+
+const materializeDeleteSet = desc => {
+  const ds = new YDeleteSet()
+  for (const clientDesc of desc) {
+    ds.clients.set(clientDesc.client, clientDesc.deletes.map(item => new YDeleteItem(item.clock, item.len)))
+  }
+  return ds
+}
+
+const encodeDeleteSetCase = (name, input) => {
+  const ds = materializeDeleteSet(input)
+  const encoder = new Y.UpdateEncoderV1()
+  yWriteDeleteSet(encoder, ds)
+  const bytes = encoder.toUint8Array()
+  const decoder = new Y.UpdateDecoderV1(decoding.createDecoder(bytes))
+  const decoded = yReadDeleteSet(decoder)
+  if (decoding.hasContent(decoder.restDecoder)) {
+    throw new Error(`Delete-set fixture case ${name} left unread bytes`)
+  }
+
+  return {
+    name,
+    input,
+    decoded: deleteSetDescriptor(decoded),
+    hex: hex(bytes)
+  }
+}
+
+const makeDeleteSetFixtures = () => ({
+  source: 'yjs/src/utils/DeleteSet.js + yjs/src/utils/UpdateEncoder.js + yjs/src/utils/UpdateDecoder.js',
+  cases: [
+    encodeDeleteSetCase('empty delete set', []),
+    encodeDeleteSetCase('single client delete set', [
+      { client: 1, deletes: [{ clock: 0, len: 1 }, { clock: 3, len: 2 }, { clock: 10, len: 5 }] }
+    ]),
+    encodeDeleteSetCase('multi client delete set sorts clients descending', [
+      { client: 2, deletes: [{ clock: 0, len: 3 }, { clock: 8, len: 1 }] },
+      { client: 4294967295, deletes: [{ clock: 1, len: 4 }] },
+      { client: 1, deletes: [{ clock: 7, len: 2 }] }
+    ]),
+    encodeDeleteSetCase('large clocks and lengths', [
+      { client: 123456789, deletes: [{ clock: 4294967290, len: 5 }, { clock: 9007199, len: 65536 }] }
+    ])
+  ]
+})
+
 fs.mkdirSync(fixturesDir, { recursive: true })
 fs.writeFileSync(
   path.join(fixturesDir, 'encoding-primitives.json'),
@@ -445,4 +501,8 @@ fs.writeFileSync(
 fs.writeFileSync(
   path.join(fixturesDir, 'update-codecs-v1.json'),
   `${JSON.stringify(makeUpdateCodecFixtures(), null, 2)}\n`
+)
+fs.writeFileSync(
+  path.join(fixturesDir, 'delete-set-v1.json'),
+  `${JSON.stringify(makeDeleteSetFixtures(), null, 2)}\n`
 )

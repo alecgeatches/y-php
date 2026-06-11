@@ -73,10 +73,10 @@ final class Yjs {
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function getState( ...$args ) {
-		getState( ...$args );
+		return getState( ...$args );
 	}
 
 	/**
@@ -89,18 +89,18 @@ final class Yjs {
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function createDeleteSet( ...$args ) {
-		createDeleteSet( ...$args );
+		return createDeleteSet( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function createDeleteSetFromStructStore( ...$args ) {
-		createDeleteSetFromStructStore( ...$args );
+		return createDeleteSetFromStructStore( ...$args );
 	}
 
 	/**
@@ -137,34 +137,34 @@ final class Yjs {
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function findIndexSS( ...$args ) {
-		findIndexSS( ...$args );
+		return findIndexSS( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function getItem( ...$args ) {
-		getItem( ...$args );
+		return getItem( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function getItemCleanStart( ...$args ) {
-		getItemCleanStart( ...$args );
+		return getItemCleanStart( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function getItemCleanEnd( ...$args ) {
-		getItemCleanEnd( ...$args );
+		return getItemCleanEnd( ...$args );
 	}
 
 	/**
@@ -201,10 +201,10 @@ final class Yjs {
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function iterateDeletedStructs( ...$args ) {
-		iterateDeletedStructs( ...$args );
+		return iterateDeletedStructs( ...$args );
 	}
 
 	/**
@@ -345,10 +345,10 @@ final class Yjs {
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function isDeleted( ...$args ) {
-		isDeleted( ...$args );
+		return isDeleted( ...$args );
 	}
 
 	/**
@@ -505,18 +505,18 @@ final class Yjs {
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function equalDeleteSets( ...$args ) {
-		equalDeleteSets( ...$args );
+		return equalDeleteSets( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function mergeDeleteSets( ...$args ) {
-		mergeDeleteSets( ...$args );
+		return mergeDeleteSets( ...$args );
 	}
 
 	/**
