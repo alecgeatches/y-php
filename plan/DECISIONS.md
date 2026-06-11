@@ -324,3 +324,17 @@ Use the next free `DEC-NNNN` number. Never edit a prior entry's decision; if it 
 - **Decision:** `tools/gen-fixtures.mjs` now writes `tests/fixtures/ytext-scenarios.json` and `tests/fixtures/ytext-convergence.json`. The convergence fixture follows the M2.5/M2.6 operation-log pattern for 10 deterministic seeds and covers text insertion, formatting, deletion, embeds, and `applyDelta()`. `tests/Unit/YTextTest.php` replaces the translated red-baseline methods with real assertions; the JS `testRepeatGenerateQuillChanges2Repeat` 1000-repeat stress loop is scaled to 25 repeats in PHP, while byte-level multi-user coverage is pinned by the JS fixture seeds.
 - **Why:** PHP is slower than V8 (CONTEXT hazard 11), and the conformance fixture provides stronger byte-parity coverage than an oversized local stress loop. Keeping the method inventory avoids losing traceability to `yjs/tests/y-text.tests.js`.
 - **Affects:** YText conformance, fixture regeneration, future fuzz budgets, and later milestones that reuse `tests/Support/compare()` for text deltas.
+
+### DEC-0043 — XML traversal, events, and string coercion mirror JS runtime behavior
+- **Milestone:** M4
+- **Status:** accepted
+- **Decision:** Add `Yjs\Types\YXmlTreeWalker` for `YXmlFragment::createTreeWalker()`, with `next()` returning a JS-style `value`/`done` array and `IteratorAggregate` support for PHP iteration. `YXmlEvent::$attributesChanged` is an associative set (`array<string,bool>`) and `$childListChanged` is derived from `null` parent subscriptions. XML string output uses `Yjs\xmlStringifyValue()` for JS-like attribute/text coercion, and `YXmlHook::toString()` returns `[object Object]`.
+- **Why:** XML selectors and `toString()` assertions depend on tree order, sorted attributes, and JS string coercion. Hooks do not define a custom JS `toString()`, so child serialization uses the ordinary object string.
+- **Affects:** XML observers, query selectors, XML `toString()` comparisons, YXmlHook consumers, future DOM/server serialization work, and fuzz `compare()` checks.
+
+### DEC-0044 — YXml fixtures use operation logs and materialize empty formatting objects
+- **Milestone:** M4
+- **Status:** accepted
+- **Decision:** `tools/gen-fixtures.mjs` now writes `tests/fixtures/yxml-scenarios.json` and `tests/fixtures/yxml-convergence.json`. The convergence fixture follows the YArray/YMap/YText operation-log pattern for 10 deterministic seeds and covers XML attributes, element/text/hook children, deletes, and XML-text formatting. PHP replay converts empty formatting objects from fixture JSON to `stdClass` before calling `YXmlText::format()`, preserving `{}` bytes instead of PHP `[]` bytes. `tests/Support/compare()` now also asserts the default `xml` root string across synced users.
+- **Why:** `ContentFormat` V1 uses `JSON.stringify`; decoded JSON cannot distinguish an empty JS object from an empty PHP list unless replay code restores it. Including XML in `compare()` makes local fuzz catch XML convergence drift just like array/text drift.
+- **Affects:** YXml conformance, fixture regeneration, future fuzz tests using `compare()`, and any later replay code involving empty JSON objects in formatting attributes.

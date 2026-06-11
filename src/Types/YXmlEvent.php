@@ -1,6 +1,6 @@
 <?php
 /**
- * YXmlEvent public API stub.
+ * YXml event.
  *
  * @package Yjs
  */
@@ -10,16 +10,32 @@ declare(strict_types=1);
 namespace Yjs\Types;
 
 /**
- * YXmlEvent API stub for the Yjs port red baseline.
+ * Event emitted by XML tree and attribute changes.
  */
 class YXmlEvent extends \Yjs\Utils\YEvent {
-	use \Yjs\NotImplementedTrait;
+	/**
+	 * @var bool
+	 */
+	public bool $childListChanged = false;
 
 	/**
-	 * @param mixed ...$args Constructor arguments.
+	 * @var array<string,bool>
 	 */
-	public function __construct( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public array $attributesChanged = array();
+
+	/**
+	 * @param YXmlFragment|\Yjs\Types\YXmlElement|\Yjs\Types\YXmlText $target      Changed XML type.
+	 * @param array<int,string|null>                                  $subs        Changed keys.
+	 * @param \Yjs\Utils\Transaction                                  $transaction Transaction.
+	 */
+	public function __construct( YXmlFragment $target, array $subs, \Yjs\Utils\Transaction $transaction ) {
+		parent::__construct( $target, $transaction );
+		foreach ( $subs as $sub ) {
+			if ( null === $sub ) {
+				$this->childListChanged = true;
+			} else {
+				$this->attributesChanged[ $sub ] = true;
+			}
+		}
 	}
 }

@@ -1,6 +1,6 @@
 <?php
 /**
- * YXmlHook public API stub.
+ * YXmlHook public API.
  *
  * @package Yjs
  */
@@ -10,7 +10,7 @@ declare(strict_types=1);
 namespace Yjs\Types;
 
 /**
- * YXmlHook API stub for the Yjs port red baseline.
+ * Shared XML hook type.
  */
 class YXmlHook extends YMap {
 	use \Yjs\NotImplementedTrait;
@@ -42,7 +42,7 @@ class YXmlHook extends YMap {
 		$hook = new YXmlHook( $this->hookName );
 		$this->forEach(
 			static function ( $value, string $key ) use ( $hook ): void {
-				$hook->set( $key, $value instanceof AbstractType ? $value->clone() : $value );
+				$hook->set( $key, $value );
 			}
 		);
 		return $hook;
@@ -55,6 +55,10 @@ class YXmlHook extends YMap {
 	public function toDOM( ...$args ) {
 		unset( $args );
 		$this->notImplemented( __METHOD__ );
+	}
+
+	public function toString(): string {
+		return '[object Object]';
 	}
 
 	/**

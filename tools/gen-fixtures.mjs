@@ -558,6 +558,201 @@ const makeYTextConvergenceFixtures = () => ({
   cases: [5, 30, 40, 42, 43, 44, 70, 90, 300, 500].map(seed => runYTextConvergenceCase(seed, 90, 3))
 })
 
+const yxmlAttrs = [
+  ['class', 'lead'],
+  ['height', '10'],
+  ['data-id', 'node'],
+  ['count', 42],
+  ['enabled', true]
+]
+
+const xmlDescriptor = type => {
+  if (type instanceof YXmlText) {
+    return {
+      type: 'YXmlText',
+      string: type.toString(),
+      delta: type.toDelta(),
+      attributes: type.getAttributes()
+    }
+  }
+  if (type instanceof YXmlHook) {
+    return {
+      type: 'YXmlHook',
+      hookName: type.hookName,
+      json: type.toJSON(),
+      string: String(type)
+    }
+  }
+  if (type instanceof YXmlElement) {
+    return {
+      type: 'YXmlElement',
+      nodeName: type.nodeName,
+      attributes: type.getAttributes(),
+      string: type.toString(),
+      children: type.toArray().map(xmlDescriptor)
+    }
+  }
+  if (type instanceof YXmlFragment) {
+    return {
+      type: 'YXmlFragment',
+      string: type.toString(),
+      children: type.toArray().map(xmlDescriptor)
+    }
+  }
+  throw new Error(`Unknown XML type: ${type.constructor.name}`)
+}
+
+const captureYXmlScenario = (name, clientID, rootType, rootName, apply) => {
+  const doc = new Y.Doc({ guid: `y-php-yxml-${name}` })
+  doc.clientID = clientID
+  const root = doc.get(rootName, rootType)
+  apply(root, doc)
+  return {
+    name,
+    rootName,
+    rootType: rootType.name,
+    descriptor: xmlDescriptor(root),
+    updateHex: hex(Y.encodeStateAsUpdate(doc)),
+    stateVectorHex: hex(Y.encodeStateVector(doc)),
+    snapshotHex: hex(Y.encodeSnapshot(Y.snapshot(doc)))
+  }
+}
+
+const makeYXmlFixtures = () => ({
+  source: 'yjs/src/types/YXml*.js',
+  scenarios: [
+    captureYXmlScenario('element-tree', 21, YXmlElement, 'xml', xml => {
+      xml.setAttribute('height', '10')
+      xml.setAttribute('class', 'root')
+      const text = new Y.XmlText('hello')
+      text.format(0, 5, { em: {}, strong: { title: 'yes' } })
+      const paragraph = new Y.XmlElement('P')
+      paragraph.setAttribute('z', 'last')
+      paragraph.setAttribute('a', 'first')
+      paragraph.insert(0, [new Y.XmlText('nested')])
+      const hook = new Y.XmlHook('custom-hook')
+      hook.set('payload', { kind: 'widget', n: 1 })
+      hook.set('label', 'Hook Label')
+      xml.insert(0, [text, paragraph, hook])
+    }),
+    captureYXmlScenario('fragment-tree', 22, YXmlFragment, 'fragment', fragment => {
+      const p1 = new Y.XmlElement('p')
+      p1.insert(0, [new Y.XmlText('one')])
+      const p2 = new Y.XmlElement('p')
+      p2.setAttribute('id', 'two')
+      p2.insert(0, [new Y.XmlText('two')])
+      fragment.insert(0, [p1, new Y.XmlText(' gap '), p2])
+    }),
+    captureYXmlScenario('xml-text-formats', 23, YXmlText, 'xmltext', text => {
+      text.applyDelta([
+        { insert: 'A', attributes: { em: {}, strong: {} } },
+        { insert: 'B', attributes: { em: {} } },
+        { insert: 'C', attributes: { em: {}, strong: { class: 'heavy' } } }
+      ])
+      text.setAttribute('role', 'inline')
+    })
+  ]
+})
+
+const runYXmlConvergenceCase = (seed, iterations, users) => {
+  const gen = prng.create(seed)
+  const docs = Array.from({ length: users }, (_, i) => {
+    const doc = new Y.Doc({ guid: `y-php-yxml-${seed}-${i}` })
+    doc.clientID = i + 1
+    return doc
+  })
+  const operations = []
+  let unique = 0
+
+  for (let i = 0; i < iterations; i++) {
+    const user = prng.int32(gen, 0, users - 1)
+    const doc = docs[user]
+    const xml = doc.get('xml', YXmlElement)
+    const op = prng.int32(gen, 0, 6)
+
+    if (op === 0) {
+      const [key, value] = prng.oneOf(gen, yxmlAttrs)
+      const opValue = typeof value === 'string' ? `${value}-${unique++}` : value
+      xml.setAttribute(key, opValue)
+      operations.push({ op: 'setAttribute', user, key, value: opValue })
+    } else if (op === 1) {
+      const [key] = prng.oneOf(gen, yxmlAttrs)
+      xml.removeAttribute(key)
+      operations.push({ op: 'removeAttribute', user, key })
+    } else if (op === 2) {
+      const pos = prng.int32(gen, 0, xml.length)
+      const value = `${unique++}${prng.word(gen, 1, 4)}`
+      xml.insert(pos, [new Y.XmlText(value)])
+      operations.push({ op: 'insertText', user, pos, value })
+    } else if (op === 3) {
+      const pos = prng.int32(gen, 0, xml.length)
+      const nodeName = prng.oneOf(gen, ['p', 'span', 'h1'])
+      const element = new Y.XmlElement(nodeName)
+      element.setAttribute('data-id', `${unique++}`)
+      if (prng.bool(gen)) {
+        const text = prng.word(gen, 1, 5)
+        element.insert(0, [new Y.XmlText(text)])
+        xml.insert(pos, [element])
+        operations.push({ op: 'insertElement', user, pos, nodeName, attrs: [['data-id', element.getAttribute('data-id')]], text })
+      } else {
+        xml.insert(pos, [element])
+        operations.push({ op: 'insertElement', user, pos, nodeName, attrs: [['data-id', element.getAttribute('data-id')]], text: null })
+      }
+    } else if (op === 4) {
+      const pos = prng.int32(gen, 0, xml.length)
+      const hookName = prng.oneOf(gen, ['custom-hook', 'widget-hook'])
+      const hook = new Y.XmlHook(hookName)
+      const label = `hook-${unique++}`
+      hook.set('label', label)
+      hook.set('payload', { seed, label })
+      xml.insert(pos, [hook])
+      operations.push({ op: 'insertHook', user, pos, hookName, entries: [['label', label], ['payload', { seed, label }]] })
+    } else if (op === 5 && xml.length > 0) {
+      const pos = prng.int32(gen, 0, xml.length - 1)
+      xml.delete(pos, 1)
+      operations.push({ op: 'delete', user, pos, len: 1 })
+    } else {
+      const textEntries = xml.toArray()
+        .map((child, index) => ({ child, index }))
+        .filter(({ child }) => child instanceof Y.XmlText && child.length > 0)
+      if (textEntries.length > 0) {
+        const { child, index } = prng.oneOf(gen, textEntries)
+        const attrs = { [prng.oneOf(gen, ['em', 'strong'])]: {} }
+        child.format(0, child.length, attrs)
+        operations.push({ op: 'formatTextChild', user, childIndex: index, len: child.length, attrs })
+      } else {
+        operations.push({ op: 'noop', user })
+      }
+    }
+  }
+
+  const localUpdates = docs.map(doc => Y.encodeStateAsUpdate(doc))
+  docs.forEach((doc, docIndex) => {
+    localUpdates.forEach((update, updateIndex) => {
+      if (docIndex !== updateIndex) {
+        Y.applyUpdate(doc, update)
+      }
+    })
+  })
+
+  return {
+    name: `seed-${seed}`,
+    seed,
+    users,
+    iterations,
+    operations,
+    descriptors: docs.map(doc => xmlDescriptor(doc.get('xml', YXmlElement))),
+    strings: docs.map(doc => doc.get('xml', YXmlElement).toString()),
+    updateHexes: docs.map(doc => hex(Y.encodeStateAsUpdate(doc))),
+    stateVectorHexes: docs.map(doc => hex(Y.encodeStateVector(doc)))
+  }
+}
+
+const makeYXmlConvergenceFixtures = () => ({
+  source: 'yjs/src/types/YXml*.js + yjs/tests/y-xml.tests.js',
+  cases: [10, 40, 42, 43, 44, 45, 46, 300, 400, 500].map(seed => runYXmlConvergenceCase(seed, 80, 3))
+})
+
 const materializeUpdateCodecInput = input => input.type === 'id'
   ? Y.createID(input.client, input.clock)
   : materialize(input)
@@ -1056,6 +1251,14 @@ fs.writeFileSync(
 fs.writeFileSync(
   path.join(fixturesDir, 'ytext-convergence.json'),
   `${JSON.stringify(makeYTextConvergenceFixtures(), null, 2)}\n`
+)
+fs.writeFileSync(
+  path.join(fixturesDir, 'yxml-scenarios.json'),
+  `${JSON.stringify(makeYXmlFixtures(), null, 2)}\n`
+)
+fs.writeFileSync(
+  path.join(fixturesDir, 'yxml-convergence.json'),
+  `${JSON.stringify(makeYXmlConvergenceFixtures(), null, 2)}\n`
 )
 fs.writeFileSync(
   path.join(fixturesDir, 'update-codecs-v1.json'),

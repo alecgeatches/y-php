@@ -62,6 +62,7 @@ function compare( array $users ): void {
 	}
 
 	$firstArray       = $users[0]->getArray( 'array' )->toJSON();
+	$firstXml         = $users[0]->get( 'xml', YXmlElement::class )->toString();
 	$firstText        = normalizeDeltaForCompare( $users[0]->getText( 'text' )->toDelta() );
 	$firstStateVector = \Yjs\encodeStateVector( $users[0] )->toHexString();
 	$firstUpdate      = \Yjs\encodeStateAsUpdate( $users[0] )->toHexString();
@@ -75,6 +76,7 @@ function compare( array $users ): void {
 		Assert::assertNull( $user->store->pendingDs );
 		Assert::assertNull( $user->store->pendingStructs );
 		Assert::assertEquals( $firstArray, $user->getArray( 'array' )->toJSON() );
+		Assert::assertSame( $firstXml, $user->get( 'xml', YXmlElement::class )->toString() );
 		Assert::assertSame( $user->getArray( 'array' )->length, count( $user->getArray( 'array' )->toArray() ) );
 		Assert::assertSame( deltaTextLength( $user->getText( 'text' )->toDelta() ), $user->getText( 'text' )->length );
 		Assert::assertSame( $firstText, normalizeDeltaForCompare( $user->getText( 'text' )->toDelta() ) );
