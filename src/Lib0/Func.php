@@ -19,14 +19,15 @@ final class Func {
 	 * @param int                 $i         Start index.
 	 * @return void
 	 */
-	public static function callAll( array $functions, array $args, int $i = 0 ): void {
+	public static function callAll( array &$functions, array $args, int $i = 0 ): void {
 		$count = count( $functions );
 		try {
 			for ( ; $i < $count; $i++ ) {
 				$functions[ $i ]( ...$args );
+				$count = count( $functions );
 			}
 		} finally {
-			if ( $i < $count ) {
+			if ( $i < count( $functions ) ) {
 				self::callAll( $functions, $args, $i + 1 );
 			}
 		}

@@ -67,9 +67,7 @@ function removeEventHandlerListener( Utils\EventHandler $eventHandler, callable 
  */
 function callEventHandlerListeners( Utils\EventHandler $eventHandler, $arg0, $arg1 ): void {
 	$listeners = $eventHandler->l;
-	foreach ( $listeners as $listener ) {
-		$listener( $arg0, $arg1 );
-	}
+	Lib0\Func::callAll( $listeners, array( $arg0, $arg1 ) );
 }
 
 /**
@@ -2065,27 +2063,45 @@ function cleanupTransactions( array &$transactionCleanups, int $i ): void {
 		sortAndMergeDeleteSet( $ds );
 		$transaction->afterState = getStateVector( $transaction->doc->store );
 		$doc->emit( 'beforeObserverCalls', array( $transaction, $doc ) );
+		$fs = array();
 		foreach ( $transaction->changed as $itemtype ) {
 			$subs = $transaction->changed[ $itemtype ];
-			if ( null === $itemtype->_item || ! $itemtype->_item->deleted ) {
-				$itemtype->_callObserver( $transaction, $subs );
-			}
-		}
-		foreach ( $transaction->changedParentTypes as $type ) {
-			$events = $transaction->changedParentTypes[ $type ];
-			if ( 0 < count( $type->_dEH->l ) && ( null === $type->_item || ! $type->_item->deleted ) ) {
-				foreach ( $events as $event ) {
-					$event->currentTarget = $type;
-					$event->_path         = null;
+			$fs[] = static function () use ( $itemtype, $transaction, $subs ): void {
+				if ( null === $itemtype->_item || ! $itemtype->_item->deleted ) {
+					$itemtype->_callObserver( $transaction, $subs );
 				}
-				usort(
-					$events,
-					static fn ( Utils\YEvent $a, Utils\YEvent $b ): int => count( $a->path ) <=> count( $b->path )
-				);
-				callEventHandlerListeners( $type->_dEH, $events, $transaction );
-			}
+			};
 		}
-		$doc->emit( 'afterTransaction', array( $transaction, $doc ) );
+		$fs[] = static function () use ( &$fs, $transaction, $doc ): void {
+			foreach ( $transaction->changedParentTypes as $type ) {
+				$events = $transaction->changedParentTypes[ $type ];
+				if ( 0 < count( $type->_dEH->l ) && ( null === $type->_item || ! $type->_item->deleted ) ) {
+					$events = array_values(
+						array_filter(
+							$events,
+							static fn ( Utils\YEvent $event ): bool => null === $event->target->_item || ! $event->target->_item->deleted
+						)
+					);
+					foreach ( $events as $event ) {
+						$event->currentTarget = $type;
+						$event->_path         = null;
+					}
+					usort(
+						$events,
+						static fn ( Utils\YEvent $a, Utils\YEvent $b ): int => count( $a->path ) <=> count( $b->path )
+					);
+					if ( 0 < count( $events ) ) {
+						$fs[] = static function () use ( $type, $events, $transaction ): void {
+							callEventHandlerListeners( $type->_dEH, $events, $transaction );
+						};
+					}
+				}
+			}
+			$fs[] = static function () use ( $doc, $transaction ): void {
+				$doc->emit( 'afterTransaction', array( $transaction, $doc ) );
+			};
+		};
+		Lib0\Func::callAll( $fs, array() );
 	} finally {
 		if ( $doc->gc ) {
 			tryGcDeleteSet( $ds, $store, $doc->gcFilter );

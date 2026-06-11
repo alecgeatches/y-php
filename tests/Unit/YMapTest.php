@@ -1,6 +1,6 @@
 <?php
 /**
- * Translated y-map.tests.js tests.
+ * Ported y-map.tests.js tests.
  *
  * @package Yjs
  */
@@ -9,369 +9,632 @@ declare(strict_types=1);
 
 namespace Yjs\Tests\Unit;
 
+use Yjs\Lib0\Prng;
+use Yjs\Lib0\UndefinedValue;
+use Yjs\Tests\Support\T;
+use Yjs\Tests\Support\TestYInstance;
 use Yjs\Tests\Support\TranslatedTestCase;
+use Yjs\Types\YArray;
+use Yjs\Types\YMap;
+use Yjs\Types\YMapEvent;
+use Yjs\Types\YText;
+use Yjs\Utils\Doc;
+
+use function Yjs\compareIDs;
+use function Yjs\Tests\Support\applyRandomTests;
+use function Yjs\Tests\Support\compare;
+use function Yjs\Tests\Support\init;
 
 /**
- * Translated test slots from yjs/tests/y-map.tests.js.
+ * Ported assertions from yjs/tests/y-map.tests.js.
  */
 final class YMapTest extends TranslatedTestCase {
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testIterators
-	 *
-	 * @return void
-	 */
 	public function testIterators(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testIterators' );
+		$doc  = new Doc();
+		$ymap = $doc->getMap();
+		self::assertSame( array(), $ymap->values() );
+		self::assertSame( array(), $ymap->entries() );
+		self::assertSame( array(), $ymap->keys() );
+
+		$ymap->set( 'one', 1 );
+		$ymap->set( 'two', 2 );
+		self::assertSame( array( 1, 2 ), $ymap->values() );
+		self::assertSame( array( array( 'one', 1 ), array( 'two', 2 ) ), $ymap->entries() );
+		self::assertSame( array( 'one', 'two' ), $ymap->keys() );
+		self::assertSame( $ymap->entries(), iterator_to_array( $ymap ) );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testMapEventError
-	 *
-	 * @return void
-	 */
 	public function testMapEventError(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testMapEventError' );
+		$doc   = new Doc();
+		$ymap  = $doc->getMap();
+		$event = null;
+		$ymap->observe(
+			static function ( YMapEvent $e ) use ( &$event ): void {
+				$event = $e;
+			}
+		);
+		$ymap->set( 'key', 'value' );
+		self::assertInstanceOf( YMapEvent::class, $event );
+		T::fails(
+			static function () use ( $event ): void {
+				$event->keys;
+			}
+		);
+		T::fails(
+			static function () use ( $event ): void {
+				$event->keys;
+			}
+		);
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testMapHavingIterableAsConstructorParamTests
-	 *
-	 * @return void
-	 */
 	public function testMapHavingIterableAsConstructorParamTests(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testMapHavingIterableAsConstructorParamTests' );
+		$result = init( $this, array( 'users' => 1 ) );
+		$map0   = $result['map0'];
+
+		$m1 = new YMap( array( array( 'number', 1 ), array( 'string', 'hello' ) ) );
+		$map0->set( 'm1', $m1 );
+		self::assertSame( 1, $m1->get( 'number' ) );
+		self::assertSame( 'hello', $m1->get( 'string' ) );
+
+		$m2 = new YMap( array( array( 'object', (object) array( 'x' => 1 ) ), array( 'boolean', true ) ) );
+		$map0->set( 'm2', $m2 );
+		self::assertEquals( (object) array( 'x' => 1 ), $m2->get( 'object' ) );
+		self::assertTrue( $m2->get( 'boolean' ) );
+
+		$m3 = new YMap( array_merge( $m1->entries(), $m2->entries() ) );
+		$map0->set( 'm3', $m3 );
+		self::assertSame( 1, $m3->get( 'number' ) );
+		self::assertSame( 'hello', $m3->get( 'string' ) );
+		self::assertEquals( (object) array( 'x' => 1 ), $m3->get( 'object' ) );
+		self::assertTrue( $m3->get( 'boolean' ) );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testBasicMapTests
-	 *
-	 * @return void
-	 */
 	public function testBasicMapTests(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testBasicMapTests' );
+		$result = init( $this, array( 'users' => 3 ) );
+		$result['users'][2]->disconnect();
+
+		$map0 = $result['map0'];
+		$map0->set( 'null', null );
+		$map0->set( 'number', 1 );
+		$map0->set( 'string', 'hello Y' );
+		$map0->set( 'object', (object) array( 'key' => (object) array( 'key2' => 'value' ) ) );
+		$map0->set( 'y-map', new YMap() );
+		$map0->set( 'boolean1', true );
+		$map0->set( 'boolean0', false );
+		$map = $map0->get( 'y-map' );
+		$map->set( 'y-array', new YArray() );
+		$array = $map->get( 'y-array' );
+		$array->insert( 0, array( 0 ) );
+		$array->insert( 0, array( -1 ) );
+
+		$this->assertBasicMapContent( $map0 );
+
+		$result['users'][2]->connect();
+		$result['testConnector']->flushAllMessages();
+
+		$this->assertBasicMapContent( $result['map1'] );
+		$this->assertBasicMapContent( $result['map2'] );
+		compare( $result['users'] );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testGetAndSetOfMapProperty
-	 *
-	 * @return void
-	 */
 	public function testGetAndSetOfMapProperty(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testGetAndSetOfMapProperty' );
+		$result = init( $this, array( 'users' => 2 ) );
+		$map0   = $result['map0'];
+		$map0->set( 'stuff', 'stuffy' );
+		$map0->set( 'undefined', UndefinedValue::getInstance() );
+		$map0->set( 'null', null );
+		self::assertSame( 'stuffy', $map0->get( 'stuff' ) );
+
+		$result['testConnector']->flushAllMessages();
+
+		foreach ( $result['users'] as $user ) {
+			$u = $user->getMap( 'map' );
+			self::assertSame( 'stuffy', $u->get( 'stuff' ) );
+			self::assertSame( UndefinedValue::getInstance(), $u->get( 'undefined' ) );
+			self::assertNull( $u->get( 'null' ) );
+		}
+		compare( $result['users'] );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testYmapSetsYmap
-	 *
-	 * @return void
-	 */
 	public function testYmapSetsYmap(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testYmapSetsYmap' );
+		$result = init( $this, array( 'users' => 2 ) );
+		$map    = $result['map0']->set( 'Map', new YMap() );
+		self::assertSame( $map, $result['map0']->get( 'Map' ) );
+		$map->set( 'one', 1 );
+		self::assertSame( 1, $map->get( 'one' ) );
+		compare( $result['users'] );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testYmapSetsYarray
-	 *
-	 * @return void
-	 */
 	public function testYmapSetsYarray(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testYmapSetsYarray' );
+		$result = init( $this, array( 'users' => 2 ) );
+		$array  = $result['map0']->set( 'Array', new YArray() );
+		self::assertSame( $array, $result['map0']->get( 'Array' ) );
+		$array->insert( 0, array( 1, 2, 3 ) );
+		self::assertEquals( (object) array( 'Array' => array( 1, 2, 3 ) ), $result['map0']->toJSON() );
+		compare( $result['users'] );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testGetAndSetOfMapPropertySyncs
-	 *
-	 * @return void
-	 */
 	public function testGetAndSetOfMapPropertySyncs(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testGetAndSetOfMapPropertySyncs' );
+		$result = init( $this, array( 'users' => 2 ) );
+		$result['map0']->set( 'stuff', 'stuffy' );
+		self::assertSame( 'stuffy', $result['map0']->get( 'stuff' ) );
+		$result['testConnector']->flushAllMessages();
+		foreach ( $result['users'] as $user ) {
+			self::assertSame( 'stuffy', $user->getMap( 'map' )->get( 'stuff' ) );
+		}
+		compare( $result['users'] );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testGetAndSetOfMapPropertyWithConflict
-	 *
-	 * @return void
-	 */
 	public function testGetAndSetOfMapPropertyWithConflict(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testGetAndSetOfMapPropertyWithConflict' );
+		$result = init( $this, array( 'users' => 3 ) );
+		$result['map0']->set( 'stuff', 'c0' );
+		$result['map1']->set( 'stuff', 'c1' );
+		$result['testConnector']->flushAllMessages();
+		foreach ( $result['users'] as $user ) {
+			self::assertSame( 'c1', $user->getMap( 'map' )->get( 'stuff' ) );
+		}
+		compare( $result['users'] );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testSizeAndDeleteOfMapProperty
-	 *
-	 * @return void
-	 */
 	public function testSizeAndDeleteOfMapProperty(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testSizeAndDeleteOfMapProperty' );
+		$result = init( $this, array( 'users' => 1 ) );
+		$map0   = $result['map0'];
+		$map0->set( 'stuff', 'c0' );
+		$map0->set( 'otherstuff', 'c1' );
+		self::assertSame( 2, $map0->size );
+		$map0->delete( 'stuff' );
+		self::assertSame( 1, $map0->size );
+		$map0->delete( 'otherstuff' );
+		self::assertSame( 0, $map0->size );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testGetAndSetAndDeleteOfMapProperty
-	 *
-	 * @return void
-	 */
 	public function testGetAndSetAndDeleteOfMapProperty(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testGetAndSetAndDeleteOfMapProperty' );
+		$result = init( $this, array( 'users' => 3 ) );
+		$result['map0']->set( 'stuff', 'c0' );
+		$result['map1']->set( 'stuff', 'c1' );
+		$result['map1']->delete( 'stuff' );
+		$result['testConnector']->flushAllMessages();
+		foreach ( $result['users'] as $user ) {
+			self::assertSame( UndefinedValue::getInstance(), $user->getMap( 'map' )->get( 'stuff' ) );
+		}
+		compare( $result['users'] );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testSetAndClearOfMapProperties
-	 *
-	 * @return void
-	 */
 	public function testSetAndClearOfMapProperties(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testSetAndClearOfMapProperties' );
+		$result = init( $this, array( 'users' => 1 ) );
+		$result['map0']->set( 'stuff', 'c0' );
+		$result['map0']->set( 'otherstuff', 'c1' );
+		$result['map0']->clear();
+		$result['testConnector']->flushAllMessages();
+		foreach ( $result['users'] as $user ) {
+			$u = $user->getMap( 'map' );
+			self::assertSame( UndefinedValue::getInstance(), $u->get( 'stuff' ) );
+			self::assertSame( UndefinedValue::getInstance(), $u->get( 'otherstuff' ) );
+			self::assertSame( 0, $u->size );
+		}
+		compare( $result['users'] );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testSetAndClearOfMapPropertiesWithConflicts
-	 *
-	 * @return void
-	 */
 	public function testSetAndClearOfMapPropertiesWithConflicts(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testSetAndClearOfMapPropertiesWithConflicts' );
+		$result = init( $this, array( 'users' => 4 ) );
+		$result['map0']->set( 'stuff', 'c0' );
+		$result['map1']->set( 'stuff', 'c1' );
+		$result['map1']->set( 'stuff', 'c2' );
+		$result['map2']->set( 'stuff', 'c3' );
+		$result['testConnector']->flushAllMessages();
+		$result['map0']->set( 'otherstuff', 'c0' );
+		$result['map1']->set( 'otherstuff', 'c1' );
+		$result['map2']->set( 'otherstuff', 'c2' );
+		$result['map3']->set( 'otherstuff', 'c3' );
+		$result['map3']->clear();
+		$result['testConnector']->flushAllMessages();
+		foreach ( $result['users'] as $user ) {
+			$u = $user->getMap( 'map' );
+			self::assertSame( UndefinedValue::getInstance(), $u->get( 'stuff' ) );
+			self::assertSame( UndefinedValue::getInstance(), $u->get( 'otherstuff' ) );
+			self::assertSame( 0, $u->size );
+		}
+		compare( $result['users'] );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testGetAndSetOfMapPropertyWithThreeConflicts
-	 *
-	 * @return void
-	 */
 	public function testGetAndSetOfMapPropertyWithThreeConflicts(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testGetAndSetOfMapPropertyWithThreeConflicts' );
+		$result = init( $this, array( 'users' => 3 ) );
+		$result['map0']->set( 'stuff', 'c0' );
+		$result['map1']->set( 'stuff', 'c1' );
+		$result['map1']->set( 'stuff', 'c2' );
+		$result['map2']->set( 'stuff', 'c3' );
+		$result['testConnector']->flushAllMessages();
+		foreach ( $result['users'] as $user ) {
+			self::assertSame( 'c3', $user->getMap( 'map' )->get( 'stuff' ) );
+		}
+		compare( $result['users'] );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testGetAndSetAndDeleteOfMapPropertyWithThreeConflicts
-	 *
-	 * @return void
-	 */
 	public function testGetAndSetAndDeleteOfMapPropertyWithThreeConflicts(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testGetAndSetAndDeleteOfMapPropertyWithThreeConflicts' );
+		$result = init( $this, array( 'users' => 4 ) );
+		$result['map0']->set( 'stuff', 'c0' );
+		$result['map1']->set( 'stuff', 'c1' );
+		$result['map1']->set( 'stuff', 'c2' );
+		$result['map2']->set( 'stuff', 'c3' );
+		$result['testConnector']->flushAllMessages();
+		$result['map0']->set( 'stuff', 'deleteme' );
+		$result['map1']->set( 'stuff', 'c1' );
+		$result['map2']->set( 'stuff', 'c2' );
+		$result['map3']->set( 'stuff', 'c3' );
+		$result['map3']->delete( 'stuff' );
+		$result['testConnector']->flushAllMessages();
+		foreach ( $result['users'] as $user ) {
+			self::assertSame( UndefinedValue::getInstance(), $user->getMap( 'map' )->get( 'stuff' ) );
+		}
+		compare( $result['users'] );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testObserveDeepProperties
-	 *
-	 * @return void
-	 */
 	public function testObserveDeepProperties(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testObserveDeepProperties' );
+		$result = init( $this, array( 'users' => 4 ) );
+		$map1   = $result['map1']->set( 'map', new YMap() );
+		$calls  = 0;
+		$dmapid = null;
+		$result['map1']->observeDeep(
+			static function ( array $events ) use ( &$calls, &$dmapid ): void {
+				foreach ( $events as $event ) {
+					++$calls;
+					self::assertContains( 'deepmap', $event->keysChanged );
+					self::assertCount( 1, $event->path );
+					self::assertSame( 'map', $event->path[0] );
+					$dmapid = $event->target->get( 'deepmap' )->_item->id;
+				}
+			}
+		);
+		$result['testConnector']->flushAllMessages();
+		$map3 = $result['map3']->get( 'map' );
+		$map3->set( 'deepmap', new YMap() );
+		$result['testConnector']->flushAllMessages();
+		$map2 = $result['map2']->get( 'map' );
+		$map2->set( 'deepmap', new YMap() );
+		$result['testConnector']->flushAllMessages();
+		$dmap1 = $map1->get( 'deepmap' );
+		$dmap2 = $map2->get( 'deepmap' );
+		$dmap3 = $map3->get( 'deepmap' );
+		self::assertGreaterThan( 0, $calls );
+		self::assertTrue( compareIDs( $dmap1->_item->id, $dmap2->_item->id ) );
+		self::assertTrue( compareIDs( $dmap1->_item->id, $dmap3->_item->id ) );
+		self::assertTrue( compareIDs( $dmap1->_item->id, $dmapid ) );
+		compare( $result['users'] );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testObserversUsingObservedeep
-	 *
-	 * @return void
-	 */
 	public function testObserversUsingObservedeep(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testObserversUsingObservedeep' );
+		$result = init( $this, array( 'users' => 2 ) );
+		$paths  = array();
+		$calls  = 0;
+		$result['map0']->observeDeep(
+			static function ( array $events ) use ( &$paths, &$calls ): void {
+				foreach ( $events as $event ) {
+					$paths[] = $event->path;
+				}
+				++$calls;
+			}
+		);
+		$result['map0']->set( 'map', new YMap() );
+		$result['map0']->get( 'map' )->set( 'array', new YArray() );
+		$result['map0']->get( 'map' )->get( 'array' )->insert( 0, array( 'content' ) );
+		self::assertSame( 3, $calls );
+		self::assertSame( array( array(), array( 'map' ), array( 'map', 'array' ) ), $paths );
+		compare( $result['users'] );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testPathsOfSiblingEvents
-	 *
-	 * @return void
-	 */
 	public function testPathsOfSiblingEvents(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testPathsOfSiblingEvents' );
+		$result = init( $this, array( 'users' => 2 ) );
+		$paths  = array();
+		$calls  = 0;
+		$doc    = $result['users'][0];
+		$result['map0']->set( 'map', new YMap() );
+		$result['map0']->get( 'map' )->set( 'text1', new YText( 'initial' ) );
+		$result['map0']->observeDeep(
+			static function ( array $events ) use ( &$paths, &$calls ): void {
+				foreach ( $events as $event ) {
+					$paths[] = $event->path;
+				}
+				++$calls;
+			}
+		);
+		$doc->transact(
+			static function () use ( $result ): void {
+				$result['map0']->get( 'map' )->get( 'text1' )->insert( 0, 'post-' );
+				$result['map0']->get( 'map' )->set( 'text2', new YText( 'new' ) );
+			}
+		);
+		self::assertSame( 1, $calls );
+		self::assertSame( array( array( 'map' ), array( 'map', 'text1' ) ), $paths );
+		compare( $result['users'] );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testThrowsAddAndUpdateAndDeleteEvents
-	 *
-	 * @return void
-	 */
 	public function testThrowsAddAndUpdateAndDeleteEvents(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testThrowsAddAndUpdateAndDeleteEvents' );
+		$result = init( $this, array( 'users' => 2 ) );
+		$event  = null;
+		$result['map0']->observe(
+			static function ( YMapEvent $e ) use ( &$event ): void {
+				$event = $e;
+			}
+		);
+		$result['map0']->set( 'stuff', 4 );
+		$this->assertMapEvent( $event, $result['map0'], array( 'stuff' ) );
+		$result['map0']->set( 'stuff', new YArray() );
+		$this->assertMapEvent( $event, $result['map0'], array( 'stuff' ) );
+		$result['map0']->set( 'stuff', 5 );
+		$result['map0']->delete( 'stuff' );
+		$this->assertMapEvent( $event, $result['map0'], array( 'stuff' ) );
+		compare( $result['users'] );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testThrowsDeleteEventsOnClear
-	 *
-	 * @return void
-	 */
 	public function testThrowsDeleteEventsOnClear(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testThrowsDeleteEventsOnClear' );
+		$result = init( $this, array( 'users' => 2 ) );
+		$event  = null;
+		$result['map0']->observe(
+			static function ( YMapEvent $e ) use ( &$event ): void {
+				$event = $e;
+			}
+		);
+		$result['map0']->set( 'stuff', 4 );
+		$result['map0']->set( 'otherstuff', new YArray() );
+		$result['map0']->clear();
+		$this->assertMapEvent( $event, $result['map0'], array( 'stuff', 'otherstuff' ) );
+		compare( $result['users'] );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testChangeEvent
-	 *
-	 * @return void
-	 */
 	public function testChangeEvent(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testChangeEvent' );
+		$result  = init( $this, array( 'users' => 2 ) );
+		$changes = null;
+		$result['map0']->observe(
+			static function ( YMapEvent $e ) use ( &$changes ): void {
+				$changes = $e->changes;
+			}
+		);
+		$result['map0']->set( 'a', 1 );
+		$this->assertKeyChange( $changes, 'a', 'add', UndefinedValue::getInstance() );
+		$result['map0']->set( 'a', 2 );
+		$this->assertKeyChange( $changes, 'a', 'update', 1 );
+		$result['users'][0]->transact(
+			static function () use ( $result ): void {
+				$result['map0']->set( 'a', 3 );
+				$result['map0']->set( 'a', 4 );
+			}
+		);
+		$this->assertKeyChange( $changes, 'a', 'update', 2 );
+		$result['users'][0]->transact(
+			static function () use ( $result ): void {
+				$result['map0']->set( 'b', 1 );
+				$result['map0']->set( 'b', 2 );
+			}
+		);
+		$this->assertKeyChange( $changes, 'b', 'add', UndefinedValue::getInstance() );
+		$result['users'][0]->transact(
+			static function () use ( $result ): void {
+				$result['map0']->set( 'c', 1 );
+				$result['map0']->delete( 'c' );
+			}
+		);
+		self::assertSame( array(), $changes['keys'] );
+		$result['users'][0]->transact(
+			static function () use ( $result ): void {
+				$result['map0']->set( 'd', 1 );
+				$result['map0']->set( 'd', 2 );
+			}
+		);
+		$this->assertKeyChange( $changes, 'd', 'add', UndefinedValue::getInstance() );
+		compare( $result['users'] );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testYmapEventExceptionsShouldCompleteTransaction
-	 *
-	 * @return void
-	 */
 	public function testYmapEventExceptionsShouldCompleteTransaction(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testYmapEventExceptionsShouldCompleteTransaction' );
+		$doc                        = new Doc();
+		$map                        = $doc->getMap( 'map' );
+		$updateCalled               = false;
+		$throwingObserverCalled     = false;
+		$throwingDeepObserverCalled = false;
+		$throwingObserver           = static function () use ( &$throwingObserverCalled ): void {
+			$throwingObserverCalled = true;
+			throw new \RuntimeException( 'Failure' );
+		};
+		$throwingDeepObserver       = static function () use ( &$throwingDeepObserverCalled ): void {
+			$throwingDeepObserverCalled = true;
+			throw new \RuntimeException( 'Failure' );
+		};
+		$doc->on(
+			'update',
+			static function () use ( &$updateCalled ): void {
+				$updateCalled = true;
+			}
+		);
+		$map->observe( $throwingObserver );
+		$map->observeDeep( $throwingDeepObserver );
+
+		T::fails(
+			static function () use ( $map ): void {
+				$map->set( 'y', '2' );
+			}
+		);
+		self::assertTrue( $updateCalled );
+		self::assertTrue( $throwingObserverCalled );
+		self::assertTrue( $throwingDeepObserverCalled );
+
+		$updateCalled               = false;
+		$throwingObserverCalled     = false;
+		$throwingDeepObserverCalled = false;
+		T::fails(
+			static function () use ( $map ): void {
+				$map->set( 'z', '3' );
+			}
+		);
+		self::assertTrue( $updateCalled );
+		self::assertTrue( $throwingObserverCalled );
+		self::assertTrue( $throwingDeepObserverCalled );
+		self::assertSame( '3', $map->get( 'z' ) );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testYmapEventHasCorrectValueWhenSettingAPrimitive
-	 *
-	 * @return void
-	 */
 	public function testYmapEventHasCorrectValueWhenSettingAPrimitive(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testYmapEventHasCorrectValueWhenSettingAPrimitive' );
+		$result = init( $this, array( 'users' => 3 ) );
+		$event  = null;
+		$result['map0']->observe(
+			static function ( YMapEvent $e ) use ( &$event ): void {
+				$event = $e;
+			}
+		);
+		$result['map0']->set( 'stuff', 2 );
+		self::assertInstanceOf( YMapEvent::class, $event );
+		self::assertSame( 2, $event->target->get( 'stuff' ) );
+		self::assertNull( $event->value );
+		self::assertNull( $event->name );
+		compare( $result['users'] );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testYmapEventHasCorrectValueWhenSettingAPrimitiveFromOtherUser
-	 *
-	 * @return void
-	 */
 	public function testYmapEventHasCorrectValueWhenSettingAPrimitiveFromOtherUser(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testYmapEventHasCorrectValueWhenSettingAPrimitiveFromOtherUser' );
+		$result = init( $this, array( 'users' => 3 ) );
+		$event  = null;
+		$result['map0']->observe(
+			static function ( YMapEvent $e ) use ( &$event ): void {
+				$event = $e;
+			}
+		);
+		$result['map1']->set( 'stuff', 2 );
+		$result['testConnector']->flushAllMessages();
+		self::assertInstanceOf( YMapEvent::class, $event );
+		self::assertSame( 2, $event->target->get( 'stuff' ) );
+		self::assertNull( $event->value );
+		self::assertNull( $event->name );
+		compare( $result['users'] );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testRepeatGeneratingYmapTests10
-	 *
-	 * @return void
-	 */
 	public function testRepeatGeneratingYmapTests10(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testRepeatGeneratingYmapTests10' );
+		$this->runMapRandomTests( 3 );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testRepeatGeneratingYmapTests40
-	 *
-	 * @return void
-	 */
 	public function testRepeatGeneratingYmapTests40(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testRepeatGeneratingYmapTests40' );
+		$this->runMapRandomTests( 40 );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testRepeatGeneratingYmapTests42
-	 *
-	 * @return void
-	 */
 	public function testRepeatGeneratingYmapTests42(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testRepeatGeneratingYmapTests42' );
+		$this->runMapRandomTests( 42 );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testRepeatGeneratingYmapTests43
-	 *
-	 * @return void
-	 */
 	public function testRepeatGeneratingYmapTests43(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testRepeatGeneratingYmapTests43' );
+		$this->runMapRandomTests( 43 );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testRepeatGeneratingYmapTests44
-	 *
-	 * @return void
-	 */
 	public function testRepeatGeneratingYmapTests44(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testRepeatGeneratingYmapTests44' );
+		$this->runMapRandomTests( 44 );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testRepeatGeneratingYmapTests45
-	 *
-	 * @return void
-	 */
 	public function testRepeatGeneratingYmapTests45(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testRepeatGeneratingYmapTests45' );
+		$this->runMapRandomTests( 45 );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testRepeatGeneratingYmapTests46
-	 *
-	 * @return void
-	 */
 	public function testRepeatGeneratingYmapTests46(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testRepeatGeneratingYmapTests46' );
+		$this->runMapRandomTests( 46 );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testRepeatGeneratingYmapTests300
-	 *
-	 * @return void
-	 */
 	public function testRepeatGeneratingYmapTests300(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testRepeatGeneratingYmapTests300' );
+		$this->runMapRandomTests( 300 );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testRepeatGeneratingYmapTests400
-	 *
-	 * @return void
-	 */
 	public function testRepeatGeneratingYmapTests400(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testRepeatGeneratingYmapTests400' );
+		$this->runMapRandomTests( 400 );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testRepeatGeneratingYmapTests500
-	 *
-	 * @return void
-	 */
 	public function testRepeatGeneratingYmapTests500(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testRepeatGeneratingYmapTests500' );
+		$this->runMapRandomTests( 500 );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testRepeatGeneratingYmapTests600
-	 *
-	 * @return void
-	 */
 	public function testRepeatGeneratingYmapTests600(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testRepeatGeneratingYmapTests600' );
+		$this->runMapRandomTests( 600 );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testRepeatGeneratingYmapTests1000
-	 *
-	 * @return void
-	 */
 	public function testRepeatGeneratingYmapTests1000(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testRepeatGeneratingYmapTests1000' );
+		$this->runMapRandomTests( 1000 );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testRepeatGeneratingYmapTests1800
-	 *
-	 * @return void
-	 */
 	public function testRepeatGeneratingYmapTests1800(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testRepeatGeneratingYmapTests1800' );
+		$this->runMapRandomTests( 1800 );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testRepeatGeneratingYmapTests5000
-	 *
-	 * @return void
-	 */
 	public function testRepeatGeneratingYmapTests5000(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testRepeatGeneratingYmapTests5000' );
+		$this->markTestSkipped( 'Production-only fuzz budget in the JS suite.' );
 	}
 
-	/**
-	 * Source: yjs/tests/y-map.tests.js::testRepeatGeneratingYmapTests10000
-	 *
-	 * @return void
-	 */
 	public function testRepeatGeneratingYmapTests10000(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testRepeatGeneratingYmapTests10000' );
+		$this->markTestSkipped( 'Production-only fuzz budget in the JS suite.' );
+	}
+
+	public function testRepeatGeneratingYmapTests100000(): void {
+		$this->markTestSkipped( 'Production-only fuzz budget in the JS suite.' );
+	}
+
+	private function assertBasicMapContent( YMap $map ): void {
+		self::assertNull( $map->get( 'null' ) );
+		self::assertSame( 1, $map->get( 'number' ) );
+		self::assertSame( 'hello Y', $map->get( 'string' ) );
+		self::assertFalse( $map->get( 'boolean0' ) );
+		self::assertTrue( $map->get( 'boolean1' ) );
+		self::assertEquals( (object) array( 'key' => (object) array( 'key2' => 'value' ) ), $map->get( 'object' ) );
+		self::assertSame( -1, $map->get( 'y-map' )->get( 'y-array' )->get( 0 ) );
+		self::assertSame( 7, $map->size );
+	}
+
+	private function assertMapEvent( ?YMapEvent $event, YMap $target, array $keys ): void {
+		self::assertInstanceOf( YMapEvent::class, $event );
+		self::assertSame( $target, $event->target );
+		$actual = $event->keysChanged;
+		sort( $actual );
+		sort( $keys );
+		self::assertSame( $keys, $actual );
+	}
+
+	private function assertKeyChange( ?array $changes, string $key, string $action, $oldValue ): void {
+		self::assertNotNull( $changes );
+		self::assertArrayHasKey( $key, $changes['keys'] );
+		self::assertSame( $action, $changes['keys'][ $key ]['action'] );
+		self::assertSame( $oldValue, $changes['keys'][ $key ]['oldValue'] );
+	}
+
+	private function runMapRandomTests( int $iterations ): void {
+		$result = applyRandomTests( $this, $this->mapTransactions(), $iterations );
+		$first  = $this->normalizeJsonValue( $result['users'][0]->getMap( 'map' )->toJSON() );
+		foreach ( $result['users'] as $user ) {
+			self::assertEquals( $first, $this->normalizeJsonValue( $user->getMap( 'map' )->toJSON() ) );
+		}
 	}
 
 	/**
-	 * Source: yjs/tests/y-map.tests.js::testRepeatGeneratingYmapTests100000
-	 *
-	 * @return void
+	 * @return array<int,callable>
 	 */
-	public function testRepeatGeneratingYmapTests100000(): void {
-		$this->runTranslatedTest( 'y-map.tests.js', 'testRepeatGeneratingYmapTests100000' );
+	private function mapTransactions(): array {
+		return array(
+			static function ( TestYInstance $user, $gen ): void {
+				$key   = Prng::oneOf( $gen, array( 'one', 'two' ) );
+				$value = Prng::word( $gen );
+				$user->getMap( 'map' )->set( $key, $value );
+			},
+			static function ( TestYInstance $user, $gen ): void {
+				$key  = Prng::oneOf( $gen, array( 'one', 'two' ) );
+				$type = Prng::bool( $gen ) ? new YArray() : new YMap();
+				$user->getMap( 'map' )->set( $key, $type );
+				if ( $type instanceof YArray ) {
+					$type->insert( 0, array( 1, 2, 3, 4 ) );
+				} else {
+					$type->set( 'deepkey', 'deepvalue' );
+				}
+			},
+			static function ( TestYInstance $user, $gen ): void {
+				$key = Prng::oneOf( $gen, array( 'one', 'two' ) );
+				$user->getMap( 'map' )->delete( $key );
+			},
+		);
+	}
+
+	/**
+	 * @param mixed $value Value.
+	 * @return mixed
+	 */
+	private function normalizeJsonValue( $value ) {
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode
+		return json_decode( json_encode( $value ), true );
 	}
 }

@@ -282,3 +282,24 @@ Use the next free `DEC-NNNN` number. Never edit a prior entry's decision; if it 
 - **Decision:** `tools/gen-fixtures.mjs` now writes `tests/fixtures/yarray-convergence.json` from real JS Yjs for 10 deterministic seeds. Each case records local per-user YArray operations, including every nested YMap write, then applies each user's final local update to the other users once and stores the converged JSON, state vectors, and update bytes for PHP replay.
 - **Why:** This keeps the fixture independent of PHP implementation details while checking multi-user YArray convergence and byte parity against the JS source. Recording every nested map write is necessary because overwritten map values still consume clocks and affect final update bytes.
 - **Affects:** YArray conformance, fixture regeneration, and any later test generator that serializes operation logs involving nested shared types.
+
+### DEC-0037 — Transaction observer cleanup uses dynamic `callAll`
+- **Milestone:** M2.6
+- **Status:** accepted
+- **Decision:** `Yjs\Lib0\Func::callAll()` accepts its callback array by reference and re-checks its length after each callback; `callEventHandlerListeners()` delegates to it. `cleanupTransactions()` now queues changed-type observers, then appends deep-observer and `afterTransaction` callbacks during the same `callAll()` run, mirroring `yjs/src/utils/Transaction.js`.
+- **Why:** JS guarantees that all observer/deep-observer cleanup callbacks run even when an earlier observer throws, and deep-observer callbacks are appended only after ordinary observers populate `changedParentTypes`. PHP needed the same dynamic queue behavior for YMap observer-exception parity.
+- **Affects:** All observer dispatch for YArray, YMap, YText, XML, UndoManager, and future event consumers.
+
+### DEC-0038 — YMap public surface uses ordered PHP arrays for iteration-facing sets
+- **Milestone:** M2.6
+- **Status:** accepted
+- **Decision:** `Yjs\Types\YMap::$_prelimContent` remains an insertion-ordered PHP associative array. The constructor accepts both JS-style iterable `[key, value]` pairs and PHP associative arrays, preserving overwrite order. `keys()`, `values()`, `entries()`, `foreach`, `IteratorAggregate`, `toJSON()`, and magic `size` expose only live entries in `_map` order; `YMapEvent::$keysChanged` remains the transaction subs array (`array<int,string|null>`) rather than introducing a custom string Set class.
+- **Why:** PHP arrays preserve the insertion order Yjs relies on for map iteration and JSON/object encoding. Supporting pair iterables is required by `new Y.Map(entries)` parity, while accepting associative arrays keeps PHP callers from needing a wrapper for the same ordered data. A native string-set abstraction would add surface area without changing wire bytes.
+- **Affects:** YMap consumers, observer tests, JSON comparison, future XML attribute maps, and any code comparing changed map keys.
+
+### DEC-0039 — M2.6 YMap tests and fixtures follow the M2.5 operation-log pattern
+- **Milestone:** M2.6
+- **Status:** accepted
+- **Decision:** `tests/Unit/YMapTest.php` now ports the YMap unit and fuzz tests with real assertions. The JS production-only fuzz budgets (`5000`, `10000`, `100000`) remain skipped outside production. `testMapEventError` is adapted to first create an event and then assert post-transaction change computation fails; `event.value`/`event.name` are asserted as PHP `null` because Yjs v13.6.31's `YMapEvent` source does not define those properties. `tools/gen-fixtures.mjs` writes `tests/fixtures/ymap-convergence.json` as deterministic JS operation logs for 10 seeds, and `tests/Conformance/YMapConvergenceTest.php` replays them against PHP JSON, state-vector, and update bytes.
+- **Why:** The operation-log fixture style keeps byte-parity assertions independent from PHP internals and captures nested type writes whose clocks affect updates. The small unit-test adaptations reflect PHP's lack of JS `undefined` property access and the actual source shape of `YMapEvent`.
+- **Affects:** YMap conformance, future fixture regeneration, later event API work, and later milestones reusing `applyRandomTests()`.

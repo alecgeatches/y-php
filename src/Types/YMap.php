@@ -1,6 +1,6 @@
 <?php
 /**
- * YMap public API stub.
+ * YMap public API.
  *
  * @package Yjs
  */
@@ -10,11 +10,9 @@ declare(strict_types=1);
 namespace Yjs\Types;
 
 /**
- * YMap API stub for the Yjs port red baseline.
+ * Shared map implementation.
  */
 class YMap extends AbstractType implements \IteratorAggregate {
-	use \Yjs\NotImplementedTrait;
-
 	/**
 	 * @var array<string,mixed>|null
 	 */
@@ -28,9 +26,24 @@ class YMap extends AbstractType implements \IteratorAggregate {
 		$this->_prelimContent = array();
 		if ( null !== $entries ) {
 			foreach ( $entries as $key => $value ) {
-				$this->_prelimContent[ (string) $key ] = $value;
+				if ( is_array( $value ) && array_key_exists( 0, $value ) && array_key_exists( 1, $value ) && is_int( $key ) ) {
+					$this->_prelimContent[ (string) $value[0] ] = $value[1];
+				} else {
+					$this->_prelimContent[ (string) $key ] = $value;
+				}
 			}
 		}
+	}
+
+	/**
+	 * @param string $name Property name.
+	 * @return mixed
+	 */
+	public function __get( string $name ) {
+		if ( 'size' === $name ) {
+			return count( \Yjs\createMapIterator( $this ) );
+		}
+		return parent::__get( $name );
 	}
 
 	/**
@@ -81,15 +94,30 @@ class YMap extends AbstractType implements \IteratorAggregate {
 	}
 
 	public function keys(): array {
-		return array_keys( \Yjs\typeMapGetAll( $this ) );
+		return array_map(
+			static fn ( array $entry ): string => $entry[0],
+			\Yjs\createMapIterator( $this )
+		);
 	}
 
 	public function values(): array {
-		return array_values( \Yjs\typeMapGetAll( $this ) );
+		return array_map(
+			static function ( array $entry ) {
+				$content = $entry[1]->content->getContent();
+				return $content[ $entry[1]->length - 1 ];
+			},
+			\Yjs\createMapIterator( $this )
+		);
 	}
 
 	public function entries(): array {
-		return \Yjs\createMapIterator( $this );
+		return array_map(
+			static function ( array $entry ): array {
+				$content = $entry[1]->content->getContent();
+				return array( $entry[0], $content[ $entry[1]->length - 1 ] );
+			},
+			\Yjs\createMapIterator( $this )
+		);
 	}
 
 	public function forEach( callable $f ): void {

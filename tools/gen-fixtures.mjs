@@ -365,6 +365,69 @@ const makeYArrayConvergenceFixtures = () => ({
   cases: [6, 40, 42, 43, 44, 45, 46, 300, 400, 500].map(seed => runYArrayConvergenceCase(seed, 80, 3))
 })
 
+const runYMapConvergenceCase = (seed, iterations, users) => {
+  const gen = prng.create(seed)
+  const docs = Array.from({ length: users }, (_, i) => {
+    const doc = new Y.Doc({ guid: `y-php-ymap-${seed}-${i}` })
+    doc.clientID = i + 1
+    return doc
+  })
+  const operations = []
+
+  for (let i = 0; i < iterations; i++) {
+    const user = prng.int32(gen, 0, users - 1)
+    const doc = docs[user]
+    const ymap = doc.getMap('map')
+    const op = prng.int32(gen, 0, 2)
+    const key = prng.oneOf(gen, ['one', 'two'])
+
+    if (op === 0) {
+      const value = prng.utf16String(gen)
+      ymap.set(key, value)
+      operations.push({ op: 'setString', user, key, value })
+    } else if (op === 1) {
+      const typeName = prng.oneOf(gen, ['YArray', 'YMap'])
+      if (typeName === 'YArray') {
+        ymap.set(key, new Y.Array())
+        ymap.get(key).insert(0, [1, 2, 3, 4])
+        operations.push({ op: 'setArray', user, key, content: [1, 2, 3, 4] })
+      } else {
+        ymap.set(key, new Y.Map())
+        ymap.get(key).set('deepkey', 'deepvalue')
+        operations.push({ op: 'setMap', user, key, entries: [['deepkey', 'deepvalue']] })
+      }
+    } else {
+      ymap.delete(key)
+      operations.push({ op: 'delete', user, key })
+    }
+  }
+
+  const localUpdates = docs.map(doc => Y.encodeStateAsUpdate(doc))
+  docs.forEach((doc, docIndex) => {
+    localUpdates.forEach((update, updateIndex) => {
+      if (docIndex !== updateIndex) {
+        Y.applyUpdate(doc, update)
+      }
+    })
+  })
+
+  return {
+    name: `seed-${seed}`,
+    seed,
+    users,
+    iterations,
+    operations,
+    json: docs.map(doc => doc.getMap('map').toJSON()),
+    updateHexes: docs.map(doc => hex(Y.encodeStateAsUpdate(doc))),
+    stateVectorHexes: docs.map(doc => hex(Y.encodeStateVector(doc)))
+  }
+}
+
+const makeYMapConvergenceFixtures = () => ({
+  source: 'yjs/src/types/YMap.js + yjs/tests/y-map.tests.js',
+  cases: [10, 40, 42, 43, 44, 45, 46, 300, 400, 500].map(seed => runYMapConvergenceCase(seed, 80, 3))
+})
+
 const materializeUpdateCodecInput = input => input.type === 'id'
   ? Y.createID(input.client, input.clock)
   : materialize(input)
@@ -851,6 +914,10 @@ fs.writeFileSync(
 fs.writeFileSync(
   path.join(fixturesDir, 'yarray-convergence.json'),
   `${JSON.stringify(makeYArrayConvergenceFixtures(), null, 2)}\n`
+)
+fs.writeFileSync(
+  path.join(fixturesDir, 'ymap-convergence.json'),
+  `${JSON.stringify(makeYMapConvergenceFixtures(), null, 2)}\n`
 )
 fs.writeFileSync(
   path.join(fixturesDir, 'update-codecs-v1.json'),
