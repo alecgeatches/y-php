@@ -110,10 +110,57 @@ class YEvent {
 	 */
 	private function computeChanges(): array {
 		if ( null === $this->_changes ) {
+			$this->assertCanComputeChanges();
+
+			$target  = $this->target;
+			$added   = new \SplObjectStorage();
+			$deleted = new \SplObjectStorage();
+			$delta   = array();
+
+			$changed = $this->transaction->changed->contains( $target ) ? $this->transaction->changed[ $target ] : array();
+			if ( in_array( null, $changed, true ) ) {
+				$lastOp = null;
+				$packOp = static function () use ( &$delta, &$lastOp ): void {
+					if ( null !== $lastOp ) {
+						$delta[] = $lastOp;
+					}
+				};
+
+				for ( $item = $target->_start; null !== $item; $item = $item->right ) {
+					if ( $item->deleted ) {
+						if ( $this->deletes( $item ) && ! $this->adds( $item ) ) {
+							if ( null === $lastOp || ! array_key_exists( 'delete', $lastOp ) ) {
+								$packOp();
+								$lastOp = array( 'delete' => 0 );
+							}
+							$lastOp['delete'] += $item->length;
+							$deleted->attach( $item );
+						}
+					} elseif ( $this->adds( $item ) ) {
+						if ( null === $lastOp || ! array_key_exists( 'insert', $lastOp ) ) {
+							$packOp();
+							$lastOp = array( 'insert' => array() );
+						}
+						$lastOp['insert'] = array_merge( $lastOp['insert'], $item->content->getContent() );
+						$added->attach( $item );
+					} else {
+						if ( null === $lastOp || ! array_key_exists( 'retain', $lastOp ) ) {
+							$packOp();
+							$lastOp = array( 'retain' => 0 );
+						}
+						$lastOp['retain'] += $item->length;
+					}
+				}
+
+				if ( null !== $lastOp && ! array_key_exists( 'retain', $lastOp ) ) {
+					$packOp();
+				}
+			}
+
 			$this->_changes = array(
-				'added'   => array(),
-				'deleted' => array(),
-				'delta'   => array(),
+				'added'   => $added,
+				'deleted' => $deleted,
+				'delta'   => $delta,
 				'keys'    => $this->computeKeys(),
 			);
 		}
@@ -125,8 +172,72 @@ class YEvent {
 	 */
 	private function computeKeys(): array {
 		if ( null === $this->_keys ) {
-			$this->_keys = array();
+			$this->assertCanComputeChanges();
+
+			$keys    = array();
+			$target  = $this->target;
+			$changed = $this->transaction->changed->contains( $target ) ? $this->transaction->changed[ $target ] : array();
+
+			foreach ( $changed as $key ) {
+				if ( null === $key ) {
+					continue;
+				}
+				$item = $target->_map[ $key ] ?? null;
+				if ( null === $item ) {
+					continue;
+				}
+
+				$action   = null;
+				$oldValue = \Yjs\Lib0\UndefinedValue::getInstance();
+
+				if ( $this->adds( $item ) ) {
+					$prev = $item->left;
+					while ( null !== $prev && $this->adds( $prev ) ) {
+						$prev = $prev->left;
+					}
+					if ( $this->deletes( $item ) ) {
+						if ( null !== $prev && $this->deletes( $prev ) ) {
+							$action   = 'delete';
+							$oldValue = $this->lastContentValue( $prev );
+						} else {
+							continue;
+						}
+					} elseif ( null !== $prev && $this->deletes( $prev ) ) {
+						$action   = 'update';
+						$oldValue = $this->lastContentValue( $prev );
+					} else {
+						$action = 'add';
+					}
+				} elseif ( $this->deletes( $item ) ) {
+					$action   = 'delete';
+					$oldValue = $this->lastContentValue( $item );
+				} else {
+					continue;
+				}
+
+				$keys[ (string) $key ] = array(
+					'action'   => $action,
+					'oldValue' => $oldValue,
+				);
+			}
+
+			$this->_keys = $keys;
 		}
 		return $this->_keys;
+	}
+
+	private function assertCanComputeChanges(): void {
+		if ( 0 === count( $this->transaction->doc->_transactionCleanups ) ) {
+			throw \Yjs\Lib0\Error::create( 'You must not compute changes after the event-handler fired.' );
+		}
+	}
+
+	/**
+	 * @param \Yjs\Structs\Item $item Item.
+	 * @return mixed
+	 */
+	private function lastContentValue( \Yjs\Structs\Item $item ) {
+		$content = $item->content->getContent();
+		return $content[ count( $content ) - 1 ];
 	}
 }

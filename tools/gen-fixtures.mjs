@@ -289,6 +289,82 @@ const makeYjsScenarioFixtures = () => ({
   ]
 })
 
+const runYArrayConvergenceCase = (seed, iterations, users) => {
+  const gen = prng.create(seed)
+  const docs = Array.from({ length: users }, (_, i) => {
+    const doc = new Y.Doc({ guid: `y-php-yarray-${seed}-${i}` })
+    doc.clientID = i + 1
+    return doc
+  })
+  const operations = []
+  let uniqueNumber = 0
+
+  for (let i = 0; i < iterations; i++) {
+    const user = prng.int32(gen, 0, users - 1)
+    const doc = docs[user]
+    const yarray = doc.getArray('array')
+    const op = prng.int32(gen, 0, 4)
+
+    if (op === 0) {
+      const value = uniqueNumber++
+      const len = prng.int32(gen, 1, 4)
+      const content = Array.from({ length: len }, () => value)
+      const pos = prng.int32(gen, 0, yarray.length)
+      yarray.insert(pos, content)
+      operations.push({ op: 'insertNumbers', user, pos, content })
+    } else if (op === 1) {
+      const pos = prng.int32(gen, 0, yarray.length)
+      yarray.insert(pos, [new Y.Array()])
+      yarray.get(pos).insert(0, [1, 2, 3, 4])
+      operations.push({ op: 'insertArray', user, pos, content: [1, 2, 3, 4] })
+    } else if (op === 2) {
+      const pos = prng.int32(gen, 0, yarray.length)
+      yarray.insert(pos, [new Y.Map()])
+      const map = yarray.get(pos)
+      map.set('someprop', 42)
+      map.set('someprop', 43)
+      map.set('someprop', 44)
+      operations.push({ op: 'insertMap', user, pos, writes: [['someprop', 42], ['someprop', 43], ['someprop', 44]] })
+    } else if (op === 3) {
+      const pos = prng.int32(gen, 0, yarray.length)
+      yarray.insert(pos, [null])
+      operations.push({ op: 'insertNull', user, pos })
+    } else if (yarray.length > 0) {
+      const pos = prng.int32(gen, 0, yarray.length - 1)
+      const len = prng.int32(gen, 1, Math.min(2, yarray.length - pos))
+      yarray.delete(pos, len)
+      operations.push({ op: 'delete', user, pos, len })
+    } else {
+      operations.push({ op: 'noop', user })
+    }
+  }
+
+  const localUpdates = docs.map(doc => Y.encodeStateAsUpdate(doc))
+  docs.forEach((doc, docIndex) => {
+    localUpdates.forEach((update, updateIndex) => {
+      if (docIndex !== updateIndex) {
+        Y.applyUpdate(doc, update)
+      }
+    })
+  })
+
+  return {
+    name: `seed-${seed}`,
+    seed,
+    users,
+    iterations,
+    operations,
+    json: docs.map(doc => doc.getArray('array').toJSON()),
+    updateHexes: docs.map(doc => hex(Y.encodeStateAsUpdate(doc))),
+    stateVectorHexes: docs.map(doc => hex(Y.encodeStateVector(doc)))
+  }
+}
+
+const makeYArrayConvergenceFixtures = () => ({
+  source: 'yjs/src/types/YArray.js + yjs/tests/y-array.tests.js',
+  cases: [6, 40, 42, 43, 44, 45, 46, 300, 400, 500].map(seed => runYArrayConvergenceCase(seed, 80, 3))
+})
+
 const materializeUpdateCodecInput = input => input.type === 'id'
   ? Y.createID(input.client, input.clock)
   : materialize(input)
@@ -771,6 +847,10 @@ fs.writeFileSync(
 fs.writeFileSync(
   path.join(fixturesDir, 'yjs-scenarios.json'),
   `${JSON.stringify(makeYjsScenarioFixtures(), null, 2)}\n`
+)
+fs.writeFileSync(
+  path.join(fixturesDir, 'yarray-convergence.json'),
+  `${JSON.stringify(makeYArrayConvergenceFixtures(), null, 2)}\n`
 )
 fs.writeFileSync(
   path.join(fixturesDir, 'update-codecs-v1.json'),

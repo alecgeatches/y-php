@@ -945,6 +945,36 @@ function typeListMap( Types\AbstractType $type, callable $f ): array {
 }
 
 /**
+ * @param Types\AbstractType $type Type.
+ * @return \Generator<int,mixed>
+ */
+function typeListCreateIterator( Types\AbstractType $type ): \Generator {
+	$n                   = $type->_start;
+	$currentContent      = null;
+	$currentContentIndex = 0;
+
+	while ( true ) {
+		if ( null === $currentContent ) {
+			while ( null !== $n && $n->deleted ) {
+				$n = $n->right;
+			}
+			if ( null === $n ) {
+				return;
+			}
+			$currentContent      = $n->content->getContent();
+			$currentContentIndex = 0;
+			$n                   = $n->right;
+		}
+
+		yield $currentContent[ $currentContentIndex++ ];
+
+		if ( count( $currentContent ) <= $currentContentIndex ) {
+			$currentContent = null;
+		}
+	}
+}
+
+/**
  * @param Types\AbstractType $type  Type.
  * @param int                $index Index.
  * @return mixed

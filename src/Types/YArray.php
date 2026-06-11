@@ -26,6 +26,17 @@ class YArray extends AbstractType implements \IteratorAggregate {
 		$this->_searchMarker  = array();
 	}
 
+	/**
+	 * @param string $name Property name.
+	 * @return mixed
+	 */
+	public function __get( string $name ) {
+		if ( 'length' === $name ) {
+			return $this->_length;
+		}
+		return parent::__get( $name );
+	}
+
 	public static function from( array $items ): YArray {
 		$array = new YArray();
 		$array->push( $items );
@@ -148,6 +159,6 @@ class YArray extends AbstractType implements \IteratorAggregate {
 	 * @return \Traversable
 	 */
 	public function getIterator(): \Traversable {
-		return new \ArrayIterator( $this->toArray() );
+		return \Yjs\typeListCreateIterator( $this );
 	}
 }

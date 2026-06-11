@@ -254,3 +254,31 @@ Use the next free `DEC-NNNN` number. Never edit a prior entry's decision; if it 
 - **Decision:** `Yjs\Protocols\Sync` implements the V1 sync message flow (`writeSyncStep1`, `writeSyncStep2`, `readSyncStep1`, `readSyncStep2`, `writeUpdate`, and `readSyncMessage`) using lib0 varUint message wrappers plus `encodeStateVector()`, `encodeStateAsUpdate()`, and `applyUpdate()`.
 - **Why:** The milestone requires core update exchange and convergence, while sync V2 and awareness/provider behavior are outside the current scope.
 - **Affects:** Future sync/provider work, M7 V2 sync behavior, and any convergence harness that builds on the protocol helpers.
+
+### DEC-0033 — Generic event added/deleted sets use SplObjectStorage
+- **Milestone:** M2.5
+- **Status:** accepted
+- **Decision:** `Yjs\Utils\YEvent::changes` now mirrors the JS generic list/map change computation. `changes['added']` and `changes['deleted']` are `SplObjectStorage` identity sets of `Item` objects, `changes['delta']` is an ordered PHP array of `insert`/`delete`/`retain` op arrays, and `changes['keys']` remains an associative array keyed by map key.
+- **Why:** JS exposes `Set<Item>` for added/deleted and computes deltas from item identity during observer cleanup. PHP arrays cannot represent object identity sets safely, while `SplObjectStorage` already matches the transaction map/set choice from DEC-0028.
+- **Affects:** YArray/YMap/XML observer tests, future event consumers, PermanentUserData, UndoManager, and any code inspecting `YEvent::changes`.
+
+### DEC-0034 — TestConnector is a V1 in-memory sync harness
+- **Milestone:** M2.5
+- **Status:** accepted
+- **Decision:** `tests/Support/TestConnector` and `TestYInstance` now implement the JS test helper's in-memory message queue using `Yjs\Protocols\Sync` V1 messages. Local `update` events are wrapped with `Sync::writeUpdate()`, queued per remote `TestYInstance` in `SplObjectStorage`, and flushed deterministically with the existing lib0 PRNG.
+- **Why:** YArray unit and fuzz tests need real multi-document convergence before later provider/sync work exists. DEC-0032 makes V1 the available sync subset, and V2 remains deferred by DEC-0003.
+- **Affects:** All later translated fuzz tests that call `init()`, `compare()`, or `applyRandomTests()`, especially YMap/YText/XML milestones.
+
+### DEC-0035 — M2.5 YArray tests adapt JS production and mergeUpdates checks
+- **Milestone:** M2.5
+- **Status:** accepted
+- **Decision:** `tests/Unit/YArrayTest.php` ports the JS YArray unit and fuzz tests with real assertions. The JS production-only fuzz budgets (`3000`, `5000`, `30000`) remain skipped outside production, and the PHP `compare()` helper validates live synced docs, YArray JSON, state vectors, update bytes, pending-update absence, and iteration parity without invoking `mergeUpdates()`.
+- **Why:** The JS suite also skips the largest fuzz budgets unless production mode is enabled. PHP `mergeUpdates()` is still an explicit later update-utility stub, so asserting it in M2.5 would exceed the YArray milestone while adding no YArray-specific coverage.
+- **Affects:** Later update utility work should restore the JS helper's `mergeUpdates()` assertion when `mergeUpdates()` is ported; later type milestones can reuse the current live-doc convergence checks.
+
+### DEC-0036 — YArray JS-byte convergence fixtures are operation-log based
+- **Milestone:** M2.5
+- **Status:** accepted
+- **Decision:** `tools/gen-fixtures.mjs` now writes `tests/fixtures/yarray-convergence.json` from real JS Yjs for 10 deterministic seeds. Each case records local per-user YArray operations, including every nested YMap write, then applies each user's final local update to the other users once and stores the converged JSON, state vectors, and update bytes for PHP replay.
+- **Why:** This keeps the fixture independent of PHP implementation details while checking multi-user YArray convergence and byte parity against the JS source. Recording every nested map write is necessary because overwritten map values still consume clocks and affect final update bytes.
+- **Affects:** YArray conformance, fixture regeneration, and any later test generator that serializes operation logs involving nested shared types.
