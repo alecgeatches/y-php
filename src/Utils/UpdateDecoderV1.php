@@ -1,6 +1,6 @@
 <?php
 /**
- * UpdateDecoderV1 public API stub.
+ * Update decoder V1.
  *
  * @package Yjs
  */
@@ -9,152 +9,113 @@ declare(strict_types=1);
 
 namespace Yjs\Utils;
 
+use Yjs\Lib0\Buffer;
+use Yjs\Lib0\Decoding;
+use Yjs\Lib0\Error;
+
 /**
- * UpdateDecoderV1 API stub for the Yjs port red baseline.
+ * Port of UpdateDecoderV1 from yjs/src/utils/UpdateDecoder.js.
  */
-class UpdateDecoderV1 {
-	use \Yjs\NotImplementedTrait;
-
+class UpdateDecoderV1 extends DSDecoderV1 {
 	/**
-	 * @param mixed ...$args Constructor arguments.
+	 * @return ID
 	 */
-	public function __construct( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function readLeftID(): ID {
+		return \Yjs\createID(
+			Decoding::readVarUint( $this->restDecoder ),
+			Decoding::readVarUint( $this->restDecoder )
+		);
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return ID
 	 */
-	public function resetDsCurVal( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function readRightID(): ID {
+		return \Yjs\createID(
+			Decoding::readVarUint( $this->restDecoder ),
+			Decoding::readVarUint( $this->restDecoder )
+		);
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * Read the next client id.
+	 *
+	 * @return int
 	 */
-	public function readDsClock( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function readClient(): int {
+		return Decoding::readVarUint( $this->restDecoder );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return int Unsigned 8-bit integer.
 	 */
-	public function readDsLen( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function readInfo(): int {
+		return Decoding::readUint8( $this->restDecoder );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return string
 	 */
-	public function readLeftID( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function readString(): string {
+		return Decoding::readVarString( $this->restDecoder );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return bool
 	 */
-	public function readRightID( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function readParentInfo(): bool {
+		return 1 === Decoding::readVarUint( $this->restDecoder );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return int
 	 */
-	public function readClient( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function readTypeRef(): int {
+		return Decoding::readVarUint( $this->restDecoder );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * Write len of a struct - well suited for Opt RLE encoder.
+	 *
+	 * @return int
 	 */
-	public function readInfo( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function readLen(): int {
+		return Decoding::readVarUint( $this->restDecoder );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
-	public function readString( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function readAny() {
+		return Decoding::readAny( $this->restDecoder );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return Buffer
 	 */
-	public function readParentInfo( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function readBuf(): Buffer {
+		return Decoding::readVarUint8Array( $this->restDecoder )->copyUint8Array();
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * Legacy implementation uses JSON parse. We use any-decoding in v2.
+	 *
+	 * @return mixed
 	 */
-	public function readTypeRef( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function readJSON() {
+		$json = Decoding::readVarString( $this->restDecoder );
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.json_decode_json_decode
+		$value = json_decode( $json );
+		if ( JSON_ERROR_NONE !== json_last_error() ) {
+			throw Error::create( 'Unexpected JSON decode failure.' );
+		}
+		return $value;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return string
 	 */
-	public function readLen( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
-	}
-
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function readAny( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
-	}
-
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function readBuf( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
-	}
-
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function readJSON( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
-	}
-
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function readKey( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function readKey(): string {
+		return Decoding::readVarString( $this->restDecoder );
 	}
 }

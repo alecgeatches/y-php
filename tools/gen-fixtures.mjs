@@ -5,6 +5,7 @@ import * as encoding from '../../yjs/node_modules/lib0/encoding.js'
 import * as decoding from '../../yjs/node_modules/lib0/decoding.js'
 import * as prng from '../../yjs/node_modules/lib0/prng.js'
 import * as Y from '../../yjs/src/index.js'
+import { readID as yReadID, writeID as yWriteID } from '../../yjs/src/utils/ID.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const fixturesDir = path.join(__dirname, '..', 'tests', 'fixtures')
@@ -171,6 +172,7 @@ const bigint = value => ({ type: 'bigint', value })
 const uint8array = value => ({ type: 'uint8array', value })
 const array = value => ({ type: 'array', value })
 const object = value => ({ type: 'object', value })
+const id = (client, clock) => ({ type: 'id', client, clock })
 
 const cases = [
   ...[0, 1, 2, 63, 64, 127, 128, 255, 256, 16383, 16384, 4294967295, Number.MAX_SAFE_INTEGER].map(value => encodeCase('writeVarUint', number(value))),
@@ -263,6 +265,170 @@ const makeYjsScenarioFixtures = () => ({
   ]
 })
 
+const materializeUpdateCodecInput = input => input.type === 'id'
+  ? Y.createID(input.client, input.clock)
+  : materialize(input)
+
+const descriptorUpdateCodecValue = value => value instanceof Y.ID
+  ? id(value.client, value.clock)
+  : descriptor(value)
+
+const encodeUpdateCodecCase = (name, method, input) => {
+  const value = materializeUpdateCodecInput(input)
+  let bytes
+  if (method === 'writeID') {
+    const encoder = encoding.createEncoder()
+    yWriteID(encoder, value)
+    bytes = encoding.toUint8Array(encoder)
+  } else {
+    const encoder = new Y.UpdateEncoderV1()
+    switch (method) {
+      case 'writeLeftID':
+        encoder.writeLeftID(value)
+        break
+      case 'writeRightID':
+        encoder.writeRightID(value)
+        break
+      case 'writeClient':
+        encoder.writeClient(value)
+        break
+      case 'writeInfo':
+        encoder.writeInfo(value)
+        break
+      case 'writeString':
+        encoder.writeString(value)
+        break
+      case 'writeParentInfo':
+        encoder.writeParentInfo(value)
+        break
+      case 'writeTypeRef':
+        encoder.writeTypeRef(value)
+        break
+      case 'writeLen':
+        encoder.writeLen(value)
+        break
+      case 'writeAny':
+        encoder.writeAny(value)
+        break
+      case 'writeBuf':
+        encoder.writeBuf(value)
+        break
+      case 'writeJSON':
+        encoder.writeJSON(value)
+        break
+      case 'writeKey':
+        encoder.writeKey(value)
+        break
+      case 'writeDsClock':
+        encoder.writeDsClock(value)
+        break
+      case 'writeDsLen':
+        encoder.writeDsLen(value)
+        break
+      default:
+        throw new Error(`Unknown update codec writer: ${method}`)
+    }
+    bytes = encoder.toUint8Array()
+  }
+
+  const decoder = decoding.createDecoder(bytes)
+  let decoded
+  if (method === 'writeID') {
+    decoded = yReadID(decoder)
+  } else {
+    const updateDecoder = new Y.UpdateDecoderV1(decoder)
+    switch (method) {
+      case 'writeLeftID':
+        decoded = updateDecoder.readLeftID()
+        break
+      case 'writeRightID':
+        decoded = updateDecoder.readRightID()
+        break
+      case 'writeClient':
+        decoded = updateDecoder.readClient()
+        break
+      case 'writeInfo':
+        decoded = updateDecoder.readInfo()
+        break
+      case 'writeString':
+        decoded = updateDecoder.readString()
+        break
+      case 'writeParentInfo':
+        decoded = updateDecoder.readParentInfo()
+        break
+      case 'writeTypeRef':
+        decoded = updateDecoder.readTypeRef()
+        break
+      case 'writeLen':
+        decoded = updateDecoder.readLen()
+        break
+      case 'writeAny':
+        decoded = updateDecoder.readAny()
+        break
+      case 'writeBuf':
+        decoded = updateDecoder.readBuf()
+        break
+      case 'writeJSON':
+        decoded = updateDecoder.readJSON()
+        break
+      case 'writeKey':
+        decoded = updateDecoder.readKey()
+        break
+      case 'writeDsClock':
+        decoded = updateDecoder.readDsClock()
+        break
+      case 'writeDsLen':
+        decoded = updateDecoder.readDsLen()
+        break
+      default:
+        throw new Error(`Unknown update codec reader: ${method}`)
+    }
+  }
+
+  if (decoding.hasContent(decoder)) {
+    throw new Error(`Fixture case ${name} left unread bytes`)
+  }
+
+  return {
+    name,
+    method,
+    input,
+    decoded: descriptorUpdateCodecValue(decoded),
+    hex: hex(bytes)
+  }
+}
+
+const makeUpdateCodecFixtures = () => ({
+  source: 'yjs/src/utils/ID.js + yjs/src/utils/UpdateEncoder.js + yjs/src/utils/UpdateDecoder.js',
+  cases: [
+    encodeUpdateCodecCase('writeID small', 'writeID', id(1, 0)),
+    encodeUpdateCodecCase('writeID uint32 edge', 'writeID', id(4294967295, 4294967295)),
+    encodeUpdateCodecCase('writeLeftID', 'writeLeftID', id(42, 7)),
+    encodeUpdateCodecCase('writeRightID', 'writeRightID', id(4294967295, 128)),
+    encodeUpdateCodecCase('writeClient uint32 edge', 'writeClient', number(4294967295)),
+    encodeUpdateCodecCase('writeInfo zero', 'writeInfo', number(0)),
+    encodeUpdateCodecCase('writeInfo max', 'writeInfo', number(255)),
+    encodeUpdateCodecCase('writeString unicode slash', 'writeString', string('snow \u2603 / slash')),
+    encodeUpdateCodecCase('writeParentInfo true', 'writeParentInfo', bool(true)),
+    encodeUpdateCodecCase('writeParentInfo false', 'writeParentInfo', bool(false)),
+    encodeUpdateCodecCase('writeTypeRef', 'writeTypeRef', number(9)),
+    encodeUpdateCodecCase('writeLen', 'writeLen', number(16384)),
+    encodeUpdateCodecCase('writeAny object', 'writeAny', object([
+      ['alpha', number(1)],
+      ['beta', array([bool(true), string('ok')])]
+    ])),
+    encodeUpdateCodecCase('writeBuf', 'writeBuf', uint8array([0, 1, 127, 128, 255])),
+    encodeUpdateCodecCase('writeJSON object', 'writeJSON', object([
+      ['url', string('https://example.com/a/b')],
+      ['snow', string('\u2603')],
+      ['arr', array([number(1), nil()])]
+    ])),
+    encodeUpdateCodecCase('writeKey', 'writeKey', string('parent/key')),
+    encodeUpdateCodecCase('writeDsClock', 'writeDsClock', number(4294967295)),
+    encodeUpdateCodecCase('writeDsLen', 'writeDsLen', number(65536))
+  ]
+})
+
 fs.mkdirSync(fixturesDir, { recursive: true })
 fs.writeFileSync(
   path.join(fixturesDir, 'encoding-primitives.json'),
@@ -275,4 +441,8 @@ fs.writeFileSync(
 fs.writeFileSync(
   path.join(fixturesDir, 'yjs-scenarios.json'),
   `${JSON.stringify(makeYjsScenarioFixtures(), null, 2)}\n`
+)
+fs.writeFileSync(
+  path.join(fixturesDir, 'update-codecs-v1.json'),
+  `${JSON.stringify(makeUpdateCodecFixtures(), null, 2)}\n`
 )

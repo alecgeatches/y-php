@@ -1,6 +1,6 @@
 <?php
 /**
- * UpdateEncoderV1 public API stub.
+ * Update encoder V1.
  *
  * @package Yjs
  */
@@ -9,161 +9,191 @@ declare(strict_types=1);
 
 namespace Yjs\Utils;
 
+use Yjs\Lib0\Arr;
+use Yjs\Lib0\BigInt64;
+use Yjs\Lib0\Buffer;
+use Yjs\Lib0\Encoding;
+use Yjs\Lib0\Error;
+use Yjs\Lib0\Math;
+use Yjs\Lib0\Obj;
+use Yjs\Lib0\UndefinedValue;
+
 /**
- * UpdateEncoderV1 API stub for the Yjs port red baseline.
+ * Port of UpdateEncoderV1 from yjs/src/utils/UpdateEncoder.js.
  */
-class UpdateEncoderV1 {
-	use \Yjs\NotImplementedTrait;
-
+class UpdateEncoderV1 extends DSEncoderV1 {
 	/**
-	 * @param mixed ...$args Constructor arguments.
+	 * @param ID $id ID.
+	 * @return void
 	 */
-	public function __construct( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function writeLeftID( ID $id ): void {
+		Encoding::writeVarUint( $this->restEncoder, $id->client );
+		Encoding::writeVarUint( $this->restEncoder, $id->clock );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param ID $id ID.
 	 * @return void
 	 */
-	public function toUint8Array( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function writeRightID( ID $id ): void {
+		Encoding::writeVarUint( $this->restEncoder, $id->client );
+		Encoding::writeVarUint( $this->restEncoder, $id->clock );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * Use writeClient and writeClock instead of writeID if possible.
+	 *
+	 * @param int $client Client id.
 	 * @return void
 	 */
-	public function resetDsCurVal( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function writeClient( int $client ): void {
+		Encoding::writeVarUint( $this->restEncoder, $client );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param int $info Unsigned 8-bit integer.
 	 * @return void
 	 */
-	public function writeDsClock( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function writeInfo( int $info ): void {
+		Encoding::writeUint8( $this->restEncoder, $info );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param string $s String.
 	 * @return void
 	 */
-	public function writeDsLen( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function writeString( string $s ): void {
+		Encoding::writeVarString( $this->restEncoder, $s );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param bool $isYKey Whether the parent info is a Y key.
 	 * @return void
 	 */
-	public function writeLeftID( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function writeParentInfo( bool $isYKey ): void {
+		Encoding::writeVarUint( $this->restEncoder, $isYKey ? 1 : 0 );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param int $info Type ref.
 	 * @return void
 	 */
-	public function writeRightID( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function writeTypeRef( int $info ): void {
+		Encoding::writeVarUint( $this->restEncoder, $info );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * Write len of a struct - well suited for Opt RLE encoder.
+	 *
+	 * @param int $len Length.
 	 * @return void
 	 */
-	public function writeClient( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function writeLen( int $len ): void {
+		Encoding::writeVarUint( $this->restEncoder, $len );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $any Value.
 	 * @return void
 	 */
-	public function writeInfo( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function writeAny( $any ): void {
+		Encoding::writeAny( $this->restEncoder, $any );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param Buffer $buf Buffer.
 	 * @return void
 	 */
-	public function writeString( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function writeBuf( Buffer $buf ): void {
+		Encoding::writeVarUint8Array( $this->restEncoder, $buf );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $embed JSON-serializable embed.
 	 * @return void
 	 */
-	public function writeParentInfo( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function writeJSON( $embed ): void {
+		Encoding::writeVarString( $this->restEncoder, self::jsonStringify( $embed ) );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param string $key Key.
 	 * @return void
 	 */
-	public function writeTypeRef( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function writeKey( string $key ): void {
+		Encoding::writeVarString( $this->restEncoder, $key );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @param mixed $value JSON value.
+	 * @return string
 	 */
-	public function writeLen( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	private static function jsonStringify( $value ): string {
+		if ( $value instanceof UndefinedValue ) {
+			return 'undefined';
+		}
+
+		$normalized = self::normalizeJsonValue( $value );
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode
+		$json = json_encode( $normalized, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+		if ( false === $json ) {
+			throw Error::create( 'Unexpected JSON encode failure.' );
+		}
+		return $json;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @param mixed $value JSON value.
+	 * @return mixed
 	 */
-	public function writeAny( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	private static function normalizeJsonValue( $value ) {
+		if ( $value instanceof BigInt64 ) {
+			throw Error::create( 'Do not know how to serialize a BigInt.' );
+		}
+		if ( $value instanceof UndefinedValue ) {
+			return null;
+		}
+		if ( is_float( $value ) ) {
+			if ( is_nan( $value ) || is_infinite( $value ) ) {
+				return null;
+			}
+			if ( 0.0 === $value && Math::isNegativeZero( $value ) ) {
+				return 0;
+			}
+		}
+		if ( is_array( $value ) ) {
+			return Arr::isList( $value ) ? self::normalizeJsonArray( $value ) : self::normalizeJsonObject( $value );
+		}
+		if ( $value instanceof \stdClass ) {
+			return (object) self::normalizeJsonObject( Obj::toArray( $value ) );
+		}
+		return $value;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @param array<int,mixed> $value JSON array.
+	 * @return array<int,mixed>
 	 */
-	public function writeBuf( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	private static function normalizeJsonArray( array $value ): array {
+		$normalized = array();
+		foreach ( $value as $item ) {
+			$normalized[] = self::normalizeJsonValue( $item );
+		}
+		return $normalized;
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @param array<int|string,mixed> $value JSON object.
+	 * @return array<string,mixed>
 	 */
-	public function writeJSON( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
-	}
-
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function writeKey( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	private static function normalizeJsonObject( array $value ): array {
+		$normalized = array();
+		foreach ( $value as $key => $item ) {
+			if ( $item instanceof UndefinedValue ) {
+				continue;
+			}
+			$normalized[ (string) $key ] = self::normalizeJsonValue( $item );
+		}
+		return $normalized;
 	}
 }

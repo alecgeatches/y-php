@@ -149,3 +149,24 @@ Use the next free `DEC-NNNN` number. Never edit a prior entry's decision; if it 
 - **Decision:** `tools/gen-fixtures.mjs` writes `tests/fixtures/yjs-scenarios.json` with `json`, `updateHex`, `stateVectorHex`, and `snapshotHex` captured from real `yjs/src/index.js` scenarios. Each scenario pins `doc.clientID` to a deterministic integer before applying operations.
 - **Why:** Real Yjs `Doc` client IDs are random by default; pinning them keeps regenerated fixtures byte-stable while preserving the exact JS encoder output for representative array, map, and text operations.
 - **Affects:** future fixture-driven byte-parity tests and any new generated Yjs scenario fixtures.
+
+### DEC-0018 — V1 update codecs keep the JS base-class split
+- **Milestone:** M2.1
+- **Status:** accepted
+- **Decision:** Add `Yjs\Utils\DSEncoderV1` and `Yjs\Utils\DSDecoderV1` as concrete base classes with public `restEncoder`/`restDecoder` properties. `Yjs\Utils\UpdateEncoderV1` and `Yjs\Utils\UpdateDecoderV1` extend those classes and write/read directly through the already byte-verified lib0 primitives. `UpdateEncoderV2`/`UpdateDecoderV2` remain M1 stubs.
+- **Why:** JS keeps delete-set and update codecs in a class hierarchy, and later modules perform constructor/class-shape-sensitive work. Preserving the V1 base-class shape now avoids changing delete-set, snapshot, and update code later.
+- **Affects:** M2.2 delete sets, M2.3 structs/content, M2.4 update integration, M7 V2 codecs.
+
+### DEC-0019 — ID helpers are namespaced functions over a value object
+- **Milestone:** M2.1
+- **Status:** accepted
+- **Decision:** `Yjs\Utils\ID` is a simple value object with public integer `client` and `clock` properties. The JS helper functions live as `Yjs\createID()`, `Yjs\compareIDs()`, `Yjs\writeID()`, `Yjs\readID()`, and `Yjs\findRootTypeKey()` in `src/functions.php`; the public `Yjs\Yjs` facade forwards only the helpers exported by `yjs/src/index.js`.
+- **Why:** JS modules import these helpers from `ID.js`, while public `index.js` only re-exports `createID`, `compareIDs`, and `findRootTypeKey`. Keeping `writeID`/`readID` as namespace helpers gives later internal ports the same primitive without expanding the facade surface beyond JS.
+- **Affects:** relative positions, snapshots, updates, structs, and any code comparing or serializing IDs.
+
+### DEC-0020 — V1 JSON codec mirrors `JSON.stringify` string bytes
+- **Milestone:** M2.1
+- **Status:** accepted
+- **Decision:** `UpdateEncoderV1::writeJSON()` serializes with JS-compatible JSON string bytes: `JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE`, top-level `UndefinedValue` writes the string `undefined`, undefined array entries become `null`, undefined object properties are omitted, non-finite floats become `null`, negative zero becomes `0`, and `BigInt64` throws. `UpdateDecoderV1::readJSON()` decodes to PHP `stdClass`/arrays/scalars via `json_decode()` and throws on parse errors.
+- **Why:** V1 stores JSON by first applying `JSON.stringify()` and then `writeVarString()`. PHP's default `json_encode()` escapes slashes and Unicode differently from JS, which would change update bytes for ordinary embeds.
+- **Affects:** ContentEmbed, ContentJSON-adjacent logic, V1 update fixtures, and any later code using `writeJSON`/`readJSON`.

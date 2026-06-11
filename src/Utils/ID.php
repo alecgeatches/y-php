@@ -1,6 +1,6 @@
 <?php
 /**
- * ID public API stub.
+ * Item identifier.
  *
  * @package Yjs
  */
@@ -10,16 +10,29 @@ declare(strict_types=1);
 namespace Yjs\Utils;
 
 /**
- * ID API stub for the Yjs port red baseline.
+ * Port of yjs/src/utils/ID.js.
  */
 class ID {
-	use \Yjs\NotImplementedTrait;
+	/**
+	 * Client id.
+	 *
+	 * @var int
+	 */
+	public int $client;
 
 	/**
-	 * @param mixed ...$args Constructor arguments.
+	 * Unique per client id, continuous number.
+	 *
+	 * @var int
 	 */
-	public function __construct( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public int $clock;
+
+	/**
+	 * @param int $client Client id.
+	 * @param int $clock  Clock.
+	 */
+	public function __construct( int $client, int $clock ) {
+		$this->client = $client;
+		$this->clock  = $clock;
 	}
 }

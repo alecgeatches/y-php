@@ -54,19 +54,21 @@ final class Yjs {
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @param int $client Client id.
+	 * @param int $clock  Clock.
+	 * @return Utils\ID
 	 */
-	public static function createID( ...$args ) {
-		createID( ...$args );
+	public static function createID( int $client, int $clock ): Utils\ID {
+		return createID( $client, $clock );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @param Utils\ID|null $a Left ID.
+	 * @param Utils\ID|null $b Right ID.
+	 * @return bool
 	 */
-	public static function compareIDs( ...$args ) {
-		compareIDs( ...$args );
+	public static function compareIDs( ?Utils\ID $a, ?Utils\ID $b ): bool {
+		return compareIDs( $a, $b );
 	}
 
 	/**
@@ -126,11 +128,11 @@ final class Yjs {
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @param object $type AbstractType-like value.
+	 * @return string
 	 */
-	public static function findRootTypeKey( ...$args ) {
-		findRootTypeKey( ...$args );
+	public static function findRootTypeKey( object $type ): string {
+		return findRootTypeKey( $type );
 	}
 
 	/**

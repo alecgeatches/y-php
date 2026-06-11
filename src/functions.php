@@ -55,21 +55,42 @@ function compareRelativePositions( ...$args ) {
 }
 
 /**
- * @param mixed ...$args Arguments.
- * @return void
+ * @param int $client Client id.
+ * @param int $clock  Clock.
+ * @return Utils\ID
  */
-function createID( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function createID( int $client, int $clock ): Utils\ID {
+	return new Utils\ID( $client, $clock );
 }
 
 /**
- * @param mixed ...$args Arguments.
+ * @param Utils\ID|null $a Left ID.
+ * @param Utils\ID|null $b Right ID.
+ * @return bool
+ */
+function compareIDs( ?Utils\ID $a, ?Utils\ID $b ): bool {
+	return $a === $b || ( null !== $a && null !== $b && $a->client === $b->client && $a->clock === $b->clock );
+}
+
+/**
+ * @param Lib0\Encoder $encoder Encoder.
+ * @param Utils\ID     $id      ID.
  * @return void
  */
-function compareIDs( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function writeID( Lib0\Encoder $encoder, Utils\ID $id ): void {
+	Lib0\Encoding::writeVarUint( $encoder, $id->client );
+	Lib0\Encoding::writeVarUint( $encoder, $id->clock );
+}
+
+/**
+ * @param Lib0\Decoder $decoder Decoder.
+ * @return Utils\ID
+ */
+function readID( Lib0\Decoder $decoder ): Utils\ID {
+	return createID(
+		Lib0\Decoding::readVarUint( $decoder ),
+		Lib0\Decoding::readVarUint( $decoder )
+	);
 }
 
 /**
@@ -136,12 +157,32 @@ function emptySnapshot( ...$args ) {
 }
 
 /**
- * @param mixed ...$args Arguments.
- * @return void
+ * @param object $type AbstractType-like value.
+ * @return string
  */
-function findRootTypeKey( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function findRootTypeKey( object $type ): string {
+	if ( ! isset( $type->doc ) || ! is_object( $type->doc ) || ! isset( $type->doc->share ) ) {
+		Lib0\Error::unexpectedCase();
+		return '';
+	}
+
+	$share = $type->doc->share;
+	if ( is_array( $share ) || $share instanceof \Traversable ) {
+		foreach ( $share as $key => $value ) {
+			if ( $value === $type ) {
+				return (string) $key;
+			}
+		}
+	} elseif ( is_object( $share ) ) {
+		foreach ( get_object_vars( $share ) as $key => $value ) {
+			if ( $value === $type ) {
+				return (string) $key;
+			}
+		}
+	}
+
+	Lib0\Error::unexpectedCase();
+	return '';
 }
 
 /**

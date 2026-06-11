@@ -15,7 +15,7 @@ You are implementing **milestone {{MILESTONE_ID}}** of the Yjs → PHP port.
 - Port from the JS source referenced in your milestone file. Mirror it closely; do not redesign it.
 - Stay strictly within this milestone's scope. Do **not** start later milestones.
 - Write to the **PHP 7.4** baseline (no enums/readonly/union-types/match — see CONTEXT) and keep the **camelCase** Yjs API.
-- Run `{{TEST_CMD}}` and get the tests listed in your milestone file to green.
+- Run tests (usually `composer test`) and get the tests listed in your milestone file to green.
 - Code must pass `composer lint` (WPCS minus naming sniffs); auto-fix with `composer lint:fix`.
 
 **Before finishing — log your decisions:**
