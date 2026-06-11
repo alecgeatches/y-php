@@ -338,3 +338,45 @@ Use the next free `DEC-NNNN` number. Never edit a prior entry's decision; if it 
 - **Decision:** `tools/gen-fixtures.mjs` now writes `tests/fixtures/yxml-scenarios.json` and `tests/fixtures/yxml-convergence.json`. The convergence fixture follows the YArray/YMap/YText operation-log pattern for 10 deterministic seeds and covers XML attributes, element/text/hook children, deletes, and XML-text formatting. PHP replay converts empty formatting objects from fixture JSON to `stdClass` before calling `YXmlText::format()`, preserving `{}` bytes instead of PHP `[]` bytes. `tests/Support/compare()` now also asserts the default `xml` root string across synced users.
 - **Why:** `ContentFormat` V1 uses `JSON.stringify`; decoded JSON cannot distinguish an empty JS object from an empty PHP list unless replay code restores it. Including XML in `compare()` makes local fuzz catch XML convergence drift just like array/text drift.
 - **Affects:** YXml conformance, fixture regeneration, future fuzz tests using `compare()`, and any later replay code involving empty JSON objects in formatting attributes.
+
+### DEC-0045 — M5 lazy update utilities are V1-first structs
+- **Milestone:** M5
+- **Status:** accepted
+- **Decision:** Add `Yjs\Utils\LazyStructReader` and `Yjs\Utils\LazyStructWriter` plus namespace helpers for `mergeUpdates()`, `diffUpdate()`, `encodeStateVectorFromUpdate()`, `parseUpdateMeta()`, `decodeUpdate()`, `logUpdate()`, `obfuscateUpdate()`, and their `*V2` signatures. The implementation uses the V1 encoders/decoders by default and keeps lazy struct iteration in ordered PHP arrays keyed by client id.
+- **Why:** `yjs/src/utils/updates.js` implements these utilities without materializing a full `Doc`, and milestone 5 is explicitly V1-only under DEC-0003. Keeping lazy reader/writer classes close to the JS source preserves byte-for-byte merge/diff/state-vector output.
+- **Affects:** Update utility consumers, conformance fixtures, offline update processing, later V2 update conversion work, and any future optimization around update parsing.
+
+### DEC-0046 — Snapshot restore uses V1 update encoding until V2 exists
+- **Milestone:** M5
+- **Status:** accepted
+- **Decision:** Complete snapshot helpers (`typeListToArraySnapshot()`, `typeMapGetSnapshot()`, `typeMapGetAllSnapshot()`, `createDocFromSnapshot()`, `snapshotContainsUpdate()`) on the V1 path. `createDocFromSnapshot()` writes the snapshot restore update with `UpdateEncoderV1`; V2-facing conversion helpers remain V1 passthroughs/stubs until M7 implements real V2 codecs.
+- **Why:** The JS source routes snapshot restore through update encoding, but DEC-0003 defers V2. Using V1 now satisfies M5 byte parity for the required snapshot/update tests without inventing a partial V2 format.
+- **Affects:** Snapshot consumers, update containment checks, M7 V2 conversion, and any caller expecting V1 update bytes from restored snapshot docs.
+
+### DEC-0047 — Relative position objects preserve JS wire shape, not redundant root names
+- **Milestone:** M5
+- **Status:** accepted
+- **Decision:** `RelativePosition` carries public `?ID $type`, `?string $tname`, `?ID $item`, and `int $assoc`; `AbsolutePosition` carries public `AbstractType $type`, `int $index`, and `int $assoc`. Encoding follows JS precedence: when an item id is encoded, the root type name is not redundantly encoded, so tests compare decoded/encoded stability rather than requiring the original in-memory object to keep `tname`.
+- **Why:** JS relative-position encoding omits redundant root-name data when an item id is sufficient. PHP should match the wire bytes even if the original PHP value object had extra derivable fields.
+- **Affects:** Relative position APIs, JSON/byte round-trips, tests that compare relative positions, and later cursor/presence integrations.
+
+### DEC-0048 — UndoManager stack state uses PHP identity containers and clears current item before pop events
+- **Milestone:** M5
+- **Status:** accepted
+- **Decision:** Add `Yjs\Utils\UndoManager` and `StackItem`. Undo/redo stacks are ordered PHP arrays of `StackItem`; stack insertions/deletions use `DeleteSet`; stack item metadata is a PHP array; tracked origins are ordered PHP arrays that match by object identity or class-string. `popStackItem()` clears `UndoManager::$currStackItem` before emitting `stack-item-popped`.
+- **Why:** PHP lacks JS `Set`/`Map` semantics for mixed scalar/object origins, so arrays plus existing identity containers keep behavior predictable. Clearing `currStackItem` before the event is a deliberate PHP reentrancy guard: listeners may call `undo()`/`redo()` synchronously, and leaving the item set during emission can recurse forever.
+- **Affects:** UndoManager consumers, event listeners, tracked-origin matching, future provider/origin integrations, and any later port of JS undo-redo edge cases.
+
+### DEC-0049 — PermanentUserData observes synchronously and stores lookup maps as arrays
+- **Milestone:** M5
+- **Status:** accepted
+- **Decision:** Implement `Yjs\Utils\PermanentUserData` with `clients` as `array<int,string>` and `dss` as `array<string,DeleteSet>`. The JS `setTimeout(..., 0)` delete-set write is adapted to an immediate PHP `afterTransaction` listener that appends the encoded delete set during cleanup when the transaction is local and passes the configured filter.
+- **Why:** PHP has no event-loop timeout equivalent in the library runtime. Running immediately after the transaction preserves the durable delete-set mapping needed by sync and avoids requiring callers/tests to pump an async queue.
+- **Affects:** PermanentUserData, deleted-id user lookup, user-data sync across docs, EncodingTest coverage, and future async/provider layers that may choose to introduce scheduling.
+
+### DEC-0050 — M5 JS byte fixtures cover update utilities directly
+- **Milestone:** M5
+- **Status:** accepted
+- **Decision:** `tools/gen-fixtures.mjs` writes `tests/fixtures/update-utilities-v1.json` from real JS Yjs. `tests/Conformance/UpdateUtilitiesV1Test.php` asserts `mergeUpdates()`, `diffUpdate()`, `encodeStateVectorFromUpdate()`, `parseUpdateMeta()`, snapshot bytes, and applying merged updates against those fixture bytes.
+- **Why:** The milestone requires merge/diff/snapshot/state-vector outputs to byte-match real JS. Direct fixtures catch byte-order and lazy-decoder drift that ordinary document convergence tests can miss.
+- **Affects:** Fixture regeneration, update utility conformance, and later M7 V2 fixture strategy.

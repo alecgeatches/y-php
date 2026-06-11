@@ -289,6 +289,63 @@ const makeYjsScenarioFixtures = () => ({
   ]
 })
 
+const updateMetaDescriptor = meta => ({
+  from: Array.from(meta.from.entries()),
+  to: Array.from(meta.to.entries())
+})
+
+const captureUpdateUtilityCase = (name, setup) => {
+  const updates = []
+  const doc = new Y.Doc({ gc: false, guid: `y-php-update-utils-${name}` })
+  doc.clientID = 10
+  doc.on('update', update => updates.push(update))
+  setup(doc)
+  const merged = Y.mergeUpdates(updates)
+  const firstMerged = Y.mergeUpdates(updates.slice(0, 1))
+  const firstStateVector = Y.encodeStateVectorFromUpdate(firstMerged)
+  const diffFromFirst = Y.diffUpdate(merged, firstStateVector)
+  return {
+    name,
+    updatesHex: updates.map(hex),
+    finalUpdateHex: hex(Y.encodeStateAsUpdate(doc)),
+    mergedHex: hex(merged),
+    stateVectorFromMergedHex: hex(Y.encodeStateVectorFromUpdate(merged)),
+    finalStateVectorHex: hex(Y.encodeStateVector(doc)),
+    firstStateVectorHex: hex(firstStateVector),
+    diffFromFirstHex: hex(diffFromFirst),
+    parseMergedMeta: updateMetaDescriptor(Y.parseUpdateMeta(merged)),
+    snapshotHex: hex(Y.encodeSnapshot(Y.snapshot(doc)))
+  }
+}
+
+const makeUpdateUtilityFixtures = () => ({
+  source: 'yjs/src/utils/updates.js',
+  cases: [
+    captureUpdateUtilityCase('array-overlap', doc => {
+      const array = doc.getArray('array')
+      array.insert(0, [1])
+      array.insert(0, [2])
+      array.insert(0, [3])
+      array.delete(1, 1)
+    }),
+    captureUpdateUtilityCase('text-format-delete', doc => {
+      const text = doc.getText('text')
+      text.insert(0, 'hello')
+      text.format(0, 5, { bold: true })
+      text.delete(1, 2)
+      text.insert(1, 'i')
+    }),
+    captureUpdateUtilityCase('map-nested-type', doc => {
+      const map = doc.getMap('map')
+      const nested = new Y.Array()
+      map.set('nested', nested)
+      nested.insert(0, ['a', 'b'])
+      map.set('flag', true)
+      nested.delete(0, 1)
+    })
+  ]
+})
+
 const runYArrayConvergenceCase = (seed, iterations, users) => {
   const gen = prng.create(seed)
   const docs = Array.from({ length: users }, (_, i) => {
@@ -1235,6 +1292,10 @@ fs.writeFileSync(
 fs.writeFileSync(
   path.join(fixturesDir, 'yjs-scenarios.json'),
   `${JSON.stringify(makeYjsScenarioFixtures(), null, 2)}\n`
+)
+fs.writeFileSync(
+  path.join(fixturesDir, 'update-utilities-v1.json'),
+  `${JSON.stringify(makeUpdateUtilityFixtures(), null, 2)}\n`
 )
 fs.writeFileSync(
   path.join(fixturesDir, 'yarray-convergence.json'),

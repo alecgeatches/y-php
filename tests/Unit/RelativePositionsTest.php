@@ -1,6 +1,6 @@
 <?php
 /**
- * Translated relativePositions.tests.js tests.
+ * Relative position tests.
  *
  * @package Yjs
  */
@@ -10,89 +10,118 @@ declare(strict_types=1);
 namespace Yjs\Tests\Unit;
 
 use Yjs\Tests\Support\TranslatedTestCase;
+use Yjs\Utils\Doc;
+use Yjs\Utils\UndoManager;
 
 /**
- * Translated test slots from yjs/tests/relativePositions.tests.js.
+ * Translated coverage for yjs/tests/relativePositions.tests.js.
  */
 final class RelativePositionsTest extends TranslatedTestCase {
-	/**
-	 * Source: yjs/tests/relativePositions.tests.js::testRelativePositionCase1
-	 *
-	 * @return void
-	 */
 	public function testRelativePositionCase1(): void {
-		$this->runTranslatedTest( 'relativePositions.tests.js', 'testRelativePositionCase1' );
+		$ytext = ( new Doc() )->getText();
+		$ytext->insert( 0, '1' );
+		$ytext->insert( 0, 'abc' );
+		$ytext->insert( 0, 'z' );
+		$ytext->insert( 0, 'y' );
+		$ytext->insert( 0, 'x' );
+		$this->checkRelativePositions( $ytext );
 	}
 
-	/**
-	 * Source: yjs/tests/relativePositions.tests.js::testRelativePositionCase2
-	 *
-	 * @return void
-	 */
 	public function testRelativePositionCase2(): void {
-		$this->runTranslatedTest( 'relativePositions.tests.js', 'testRelativePositionCase2' );
+		$ytext = ( new Doc() )->getText();
+		$ytext->insert( 0, 'abc' );
+		$this->checkRelativePositions( $ytext );
 	}
 
-	/**
-	 * Source: yjs/tests/relativePositions.tests.js::testRelativePositionCase3
-	 *
-	 * @return void
-	 */
 	public function testRelativePositionCase3(): void {
-		$this->runTranslatedTest( 'relativePositions.tests.js', 'testRelativePositionCase3' );
+		$ytext = ( new Doc() )->getText();
+		$ytext->insert( 0, 'abc' );
+		$ytext->insert( 0, '1' );
+		$ytext->insert( 0, 'xyz' );
+		$this->checkRelativePositions( $ytext );
 	}
 
-	/**
-	 * Source: yjs/tests/relativePositions.tests.js::testRelativePositionCase4
-	 *
-	 * @return void
-	 */
 	public function testRelativePositionCase4(): void {
-		$this->runTranslatedTest( 'relativePositions.tests.js', 'testRelativePositionCase4' );
+		$ytext = ( new Doc() )->getText();
+		$ytext->insert( 0, '1' );
+		$this->checkRelativePositions( $ytext );
 	}
 
-	/**
-	 * Source: yjs/tests/relativePositions.tests.js::testRelativePositionCase5
-	 *
-	 * @return void
-	 */
 	public function testRelativePositionCase5(): void {
-		$this->runTranslatedTest( 'relativePositions.tests.js', 'testRelativePositionCase5' );
+		$ytext = ( new Doc() )->getText();
+		$ytext->insert( 0, '2' );
+		$ytext->insert( 0, '1' );
+		$this->checkRelativePositions( $ytext );
 	}
 
-	/**
-	 * Source: yjs/tests/relativePositions.tests.js::testRelativePositionCase6
-	 *
-	 * @return void
-	 */
 	public function testRelativePositionCase6(): void {
-		$this->runTranslatedTest( 'relativePositions.tests.js', 'testRelativePositionCase6' );
+		$ytext = ( new Doc() )->getText();
+		$rpos  = \Yjs\createRelativePositionFromTypeIndex( $ytext, 0 );
+		$abs   = \Yjs\createAbsolutePositionFromRelativePosition( $rpos, $ytext->doc );
+		self::assertSame( 0, $abs->index );
 	}
 
-	/**
-	 * Source: yjs/tests/relativePositions.tests.js::testRelativePositionCase7
-	 *
-	 * @return void
-	 */
 	public function testRelativePositionCase7(): void {
-		$this->runTranslatedTest( 'relativePositions.tests.js', 'testRelativePositionCase7' );
+		$docA  = new Doc();
+		$textA = $docA->getText( 'text' );
+		$textA->insert( 0, 'abcde' );
+		$relativePosition = \Yjs\createRelativePositionFromTypeIndex( $textA, 2 );
+
+		$withFollow    = \Yjs\createAbsolutePositionFromRelativePosition( $relativePosition, $docA, true );
+		$withoutFollow = \Yjs\createAbsolutePositionFromRelativePosition( $relativePosition, $docA, false );
+
+		self::assertSame( 2, $withFollow->index );
+		self::assertSame( 2, $withoutFollow->index );
 	}
 
-	/**
-	 * Source: yjs/tests/relativePositions.tests.js::testRelativePositionAssociationDifference
-	 *
-	 * @return void
-	 */
 	public function testRelativePositionAssociationDifference(): void {
-		$this->runTranslatedTest( 'relativePositions.tests.js', 'testRelativePositionAssociationDifference' );
+		$ydoc  = new Doc();
+		$ytext = $ydoc->getText();
+		$ytext->insert( 0, '2' );
+		$ytext->insert( 0, '1' );
+		$rposRight = \Yjs\createRelativePositionFromTypeIndex( $ytext, 1, 0 );
+		$rposLeft  = \Yjs\createRelativePositionFromTypeIndex( $ytext, 1, -1 );
+		$ytext->insert( 1, 'x' );
+
+		$posRight = \Yjs\createAbsolutePositionFromRelativePosition( $rposRight, $ydoc );
+		$posLeft  = \Yjs\createAbsolutePositionFromRelativePosition( $rposLeft, $ydoc );
+
+		self::assertSame( 2, $posRight->index );
+		self::assertSame( 1, $posLeft->index );
+	}
+
+	public function testRelativePositionWithUndo(): void {
+		$ydoc  = new Doc();
+		$ytext = $ydoc->getText();
+		$ytext->insert( 0, 'hello world' );
+		$rpos = \Yjs\createRelativePositionFromTypeIndex( $ytext, 1 );
+		$um   = new UndoManager( $ytext );
+		$ytext->delete( 0, 6 );
+		self::assertSame( 0, \Yjs\createAbsolutePositionFromRelativePosition( $rpos, $ydoc )->index );
+		$um->undo();
+		self::assertSame( 1, \Yjs\createAbsolutePositionFromRelativePosition( $rpos, $ydoc )->index );
+		self::assertSame( 6, \Yjs\createAbsolutePositionFromRelativePosition( $rpos, $ydoc, false )->index );
+
+		$ydocClone = new Doc();
+		\Yjs\applyUpdate( $ydocClone, \Yjs\encodeStateAsUpdate( $ydoc ) );
+		self::assertSame( 6, \Yjs\createAbsolutePositionFromRelativePosition( $rpos, $ydocClone )->index );
+		self::assertSame( 6, \Yjs\createAbsolutePositionFromRelativePosition( $rpos, $ydocClone, false )->index );
 	}
 
 	/**
-	 * Source: yjs/tests/relativePositions.tests.js::testRelativePositionWithUndo
-	 *
+	 * @param \Yjs\Types\YText $ytext Text.
 	 * @return void
 	 */
-	public function testRelativePositionWithUndo(): void {
-		$this->runTranslatedTest( 'relativePositions.tests.js', 'testRelativePositionWithUndo' );
+	private function checkRelativePositions( \Yjs\Types\YText $ytext ): void {
+		for ( $i = 0; $i < $ytext->length; $i++ ) {
+			for ( $assoc = -1; $assoc < 2; $assoc++ ) {
+				$rpos    = \Yjs\createRelativePositionFromTypeIndex( $ytext, $i, $assoc );
+				$decoded = \Yjs\decodeRelativePosition( \Yjs\encodeRelativePosition( $rpos ) );
+				$absPos  = \Yjs\createAbsolutePositionFromRelativePosition( $decoded, $ytext->doc );
+				self::assertSame( $i, $absPos->index );
+				self::assertSame( $assoc, $absPos->assoc );
+				self::assertTrue( \Yjs\compareRelativePositions( $decoded, \Yjs\decodeRelativePosition( \Yjs\encodeRelativePosition( $decoded ) ) ) );
+			}
+		}
 	}
 }

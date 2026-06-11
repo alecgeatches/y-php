@@ -15,42 +15,42 @@ namespace Yjs;
 final class Yjs {
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function getTypeChildren( ...$args ) {
-		getTypeChildren( ...$args );
+		return getTypeChildren( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function createRelativePositionFromTypeIndex( ...$args ) {
-		createRelativePositionFromTypeIndex( ...$args );
+		return createRelativePositionFromTypeIndex( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function createRelativePositionFromJSON( ...$args ) {
-		createRelativePositionFromJSON( ...$args );
+		return createRelativePositionFromJSON( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function createAbsolutePositionFromRelativePosition( ...$args ) {
-		createAbsolutePositionFromRelativePosition( ...$args );
+		return createAbsolutePositionFromRelativePosition( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function compareRelativePositions( ...$args ) {
-		compareRelativePositions( ...$args );
+		return compareRelativePositions( ...$args );
 	}
 
 	/**
@@ -169,34 +169,34 @@ final class Yjs {
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function typeListToArraySnapshot( ...$args ) {
-		typeListToArraySnapshot( ...$args );
+		return typeListToArraySnapshot( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function typeMapGetSnapshot( ...$args ) {
-		typeMapGetSnapshot( ...$args );
+		return typeMapGetSnapshot( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function typeMapGetAllSnapshot( ...$args ) {
-		typeMapGetAllSnapshot( ...$args );
+		return typeMapGetAllSnapshot( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function createDocFromSnapshot( ...$args ) {
-		createDocFromSnapshot( ...$args );
+		return createDocFromSnapshot( ...$args );
 	}
 
 	/**
@@ -305,42 +305,42 @@ final class Yjs {
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function logUpdate( ...$args ) {
-		logUpdate( ...$args );
+		return logUpdate( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function logUpdateV2( ...$args ) {
-		logUpdateV2( ...$args );
+		return logUpdateV2( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function decodeUpdate( ...$args ) {
-		decodeUpdate( ...$args );
+		return decodeUpdate( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function decodeUpdateV2( ...$args ) {
-		decodeUpdateV2( ...$args );
+		return decodeUpdateV2( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function relativePositionToJSON( ...$args ) {
-		relativePositionToJSON( ...$args );
+		return relativePositionToJSON( ...$args );
 	}
 
 	/**
@@ -353,39 +353,39 @@ final class Yjs {
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function isParentOf( ...$args ) {
-		isParentOf( ...$args );
+		return isParentOf( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function equalSnapshots( ...$args ) {
-		equalSnapshots( ...$args );
+		return equalSnapshots( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function tryGc( ...$args ) {
-		tryGc( ...$args );
+		return tryGc( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function transact( ...$args ) {
-		transact( ...$args );
+		return transact( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function logType( ...$args ) {
 		logType( ...$args );
@@ -393,114 +393,114 @@ final class Yjs {
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function mergeUpdates( ...$args ) {
-		mergeUpdates( ...$args );
+		return mergeUpdates( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function mergeUpdatesV2( ...$args ) {
-		mergeUpdatesV2( ...$args );
+		return mergeUpdatesV2( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function parseUpdateMeta( ...$args ) {
-		parseUpdateMeta( ...$args );
+		return parseUpdateMeta( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function parseUpdateMetaV2( ...$args ) {
-		parseUpdateMetaV2( ...$args );
+		return parseUpdateMetaV2( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function encodeStateVectorFromUpdate( ...$args ) {
-		encodeStateVectorFromUpdate( ...$args );
+		return encodeStateVectorFromUpdate( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function encodeStateVectorFromUpdateV2( ...$args ) {
-		encodeStateVectorFromUpdateV2( ...$args );
+		return encodeStateVectorFromUpdateV2( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function encodeRelativePosition( ...$args ) {
-		encodeRelativePosition( ...$args );
+		return encodeRelativePosition( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function decodeRelativePosition( ...$args ) {
-		decodeRelativePosition( ...$args );
+		return decodeRelativePosition( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function diffUpdate( ...$args ) {
-		diffUpdate( ...$args );
+		return diffUpdate( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function diffUpdateV2( ...$args ) {
-		diffUpdateV2( ...$args );
+		return diffUpdateV2( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function convertUpdateFormatV1ToV2( ...$args ) {
-		convertUpdateFormatV1ToV2( ...$args );
+		return convertUpdateFormatV1ToV2( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function convertUpdateFormatV2ToV1( ...$args ) {
-		convertUpdateFormatV2ToV1( ...$args );
+		return convertUpdateFormatV2ToV1( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function obfuscateUpdate( ...$args ) {
-		obfuscateUpdate( ...$args );
+		return obfuscateUpdate( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function obfuscateUpdateV2( ...$args ) {
-		obfuscateUpdateV2( ...$args );
+		return obfuscateUpdateV2( ...$args );
 	}
 
 	/**
@@ -521,9 +521,9 @@ final class Yjs {
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function snapshotContainsUpdate( ...$args ) {
-		snapshotContainsUpdate( ...$args );
+		return snapshotContainsUpdate( ...$args );
 	}
 }

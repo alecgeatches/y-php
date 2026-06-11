@@ -108,39 +108,257 @@ function addChangedTypeToTransaction( Utils\Transaction $transaction, Types\Abst
 }
 
 /**
- * @param mixed ...$args Arguments.
- * @return void
+ * @param Utils\RelativePosition $rpos Relative position.
+ * @return \stdClass
  */
-function createRelativePositionFromTypeIndex( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function relativePositionToJSON( Utils\RelativePosition $rpos ): \stdClass {
+	$json = new \stdClass();
+	if ( null !== $rpos->type ) {
+		$json->type = $rpos->type;
+	}
+	if ( null !== $rpos->tname ) {
+		$json->tname = $rpos->tname;
+	}
+	if ( null !== $rpos->item ) {
+		$json->item = $rpos->item;
+	}
+	$json->assoc = $rpos->assoc;
+	return $json;
 }
 
 /**
- * @param mixed ...$args Arguments.
- * @return void
+ * @param mixed $json JSON-like position object.
+ * @return Utils\RelativePosition
  */
-function createRelativePositionFromJSON( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function createRelativePositionFromJSON( $json ): Utils\RelativePosition {
+	$type  = relativePositionJsonHas( $json, 'type' ) ? relativePositionJsonId( relativePositionJsonGet( $json, 'type' ) ) : null;
+	$tname = relativePositionJsonHas( $json, 'tname' ) ? (string) relativePositionJsonGet( $json, 'tname' ) : null;
+	$item  = relativePositionJsonHas( $json, 'item' ) ? relativePositionJsonId( relativePositionJsonGet( $json, 'item' ) ) : null;
+	$assoc = relativePositionJsonHas( $json, 'assoc' ) ? (int) relativePositionJsonGet( $json, 'assoc' ) : 0;
+	return new Utils\RelativePosition( $type, $tname, $item, $assoc );
 }
 
 /**
- * @param mixed ...$args Arguments.
- * @return void
+ * @param mixed  $json JSON-like value.
+ * @param string $key  Key.
+ * @return bool
  */
-function createAbsolutePositionFromRelativePosition( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function relativePositionJsonHas( $json, string $key ): bool {
+	return is_array( $json ) ? array_key_exists( $key, $json ) : ( $json instanceof \stdClass && property_exists( $json, $key ) );
 }
 
 /**
- * @param mixed ...$args Arguments.
- * @return void
+ * @param mixed  $json JSON-like value.
+ * @param string $key  Key.
+ * @return mixed
  */
-function compareRelativePositions( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function relativePositionJsonGet( $json, string $key ) {
+	return is_array( $json ) ? $json[ $key ] : $json->{$key};
+}
+
+/**
+ * @param mixed $json JSON-like ID.
+ * @return Utils\ID|null
+ */
+function relativePositionJsonId( $json ): ?Utils\ID {
+	if ( null === $json ) {
+		return null;
+	}
+	return createID( (int) relativePositionJsonGet( $json, 'client' ), (int) relativePositionJsonGet( $json, 'clock' ) );
+}
+
+/**
+ * @param Types\AbstractType $type  Type.
+ * @param Utils\ID|null      $item  Item id.
+ * @param int                $assoc Association.
+ * @return Utils\RelativePosition
+ */
+function createRelativePosition( Types\AbstractType $type, ?Utils\ID $item, int $assoc = 0 ): Utils\RelativePosition {
+	$typeid = null;
+	$tname  = null;
+	if ( null === $type->_item ) {
+		$tname = findRootTypeKey( $type );
+	} else {
+		$typeid = createID( $type->_item->id->client, $type->_item->id->clock );
+	}
+	return new Utils\RelativePosition( $typeid, $tname, $item, $assoc );
+}
+
+/**
+ * @param Types\AbstractType $type  Type.
+ * @param int                $index Absolute index.
+ * @param int                $assoc Association.
+ * @return Utils\RelativePosition
+ */
+function createRelativePositionFromTypeIndex( Types\AbstractType $type, int $index, int $assoc = 0 ): Utils\RelativePosition {
+	$t = $type->_start;
+	if ( $assoc < 0 ) {
+		if ( 0 === $index ) {
+			return createRelativePosition( $type, null, $assoc );
+		}
+		--$index;
+	}
+	while ( null !== $t ) {
+		if ( ! $t->deleted && $t->countable ) {
+			if ( $t->length > $index ) {
+				return createRelativePosition( $type, createID( $t->id->client, $t->id->clock + $index ), $assoc );
+			}
+			$index -= $t->length;
+		}
+		if ( null === $t->right && $assoc < 0 ) {
+			return createRelativePosition( $type, $t->lastId, $assoc );
+		}
+		$t = $t->right;
+	}
+	return createRelativePosition( $type, null, $assoc );
+}
+
+/**
+ * @param Lib0\Encoder           $encoder Encoder.
+ * @param Utils\RelativePosition $rpos    Relative position.
+ * @return Lib0\Encoder
+ */
+function writeRelativePosition( Lib0\Encoder $encoder, Utils\RelativePosition $rpos ): Lib0\Encoder {
+	if ( null !== $rpos->item ) {
+		Lib0\Encoding::writeVarUint( $encoder, 0 );
+		writeID( $encoder, $rpos->item );
+	} elseif ( null !== $rpos->tname ) {
+		Lib0\Encoding::writeUint8( $encoder, 1 );
+		Lib0\Encoding::writeVarString( $encoder, $rpos->tname );
+	} elseif ( null !== $rpos->type ) {
+		Lib0\Encoding::writeUint8( $encoder, 2 );
+		writeID( $encoder, $rpos->type );
+	} else {
+		Lib0\Error::unexpectedCase();
+	}
+	Lib0\Encoding::writeVarInt( $encoder, $rpos->assoc );
+	return $encoder;
+}
+
+/**
+ * @param Utils\RelativePosition $rpos Relative position.
+ * @return Lib0\Buffer
+ */
+function encodeRelativePosition( Utils\RelativePosition $rpos ): Lib0\Buffer {
+	$encoder = Lib0\Encoding::createEncoder();
+	writeRelativePosition( $encoder, $rpos );
+	return Lib0\Encoding::toUint8Array( $encoder );
+}
+
+/**
+ * @param Lib0\Decoder $decoder Decoder.
+ * @return Utils\RelativePosition
+ */
+function readRelativePosition( Lib0\Decoder $decoder ): Utils\RelativePosition {
+	$type   = null;
+	$tname  = null;
+	$itemID = null;
+	switch ( Lib0\Decoding::readVarUint( $decoder ) ) {
+		case 0:
+			$itemID = readID( $decoder );
+			break;
+		case 1:
+			$tname = Lib0\Decoding::readVarString( $decoder );
+			break;
+		case 2:
+			$type = readID( $decoder );
+			break;
+	}
+	$assoc = Lib0\Decoding::hasContent( $decoder ) ? (int) Lib0\Decoding::readVarInt( $decoder ) : 0;
+	return new Utils\RelativePosition( $type, $tname, $itemID, $assoc );
+}
+
+/**
+ * @param Lib0\Buffer $uint8Array Encoded relative position.
+ * @return Utils\RelativePosition
+ */
+function decodeRelativePosition( Lib0\Buffer $uint8Array ): Utils\RelativePosition {
+	return readRelativePosition( Lib0\Decoding::createDecoder( $uint8Array ) );
+}
+
+/**
+ * @param Utils\StructStore $store Store.
+ * @param Utils\ID          $id    Item id.
+ * @return array{item:Structs\AbstractStruct,diff:int}
+ */
+function getItemWithOffset( Utils\StructStore $store, Utils\ID $id ): array {
+	$item = getItem( $store, $id );
+	return array(
+		'item' => $item,
+		'diff' => $id->clock - $item->id->clock,
+	);
+}
+
+/**
+ * @param Utils\RelativePosition $rpos                   Relative position.
+ * @param Utils\Doc              $doc                    Document.
+ * @param bool                   $followUndoneDeletions  Whether to follow redone items.
+ * @return Utils\AbsolutePosition|null
+ */
+function createAbsolutePositionFromRelativePosition( Utils\RelativePosition $rpos, Utils\Doc $doc, bool $followUndoneDeletions = true ): ?Utils\AbsolutePosition {
+	$store   = $doc->store;
+	$rightID = $rpos->item;
+	$typeID  = $rpos->type;
+	$tname   = $rpos->tname;
+	$assoc   = $rpos->assoc;
+	$type    = null;
+	$index   = 0;
+	if ( null !== $rightID ) {
+		if ( getState( $store, $rightID->client ) <= $rightID->clock ) {
+			return null;
+		}
+		$res   = $followUndoneDeletions ? followRedone( $store, $rightID ) : getItemWithOffset( $store, $rightID );
+		$right = $res['item'];
+		if ( ! $right instanceof Structs\Item ) {
+			return null;
+		}
+		$type = $right->parent;
+		if ( null === $type->_item || ! $type->_item->deleted ) {
+			$index = ( $right->deleted || ! $right->countable ) ? 0 : ( $res['diff'] + ( $assoc >= 0 ? 0 : 1 ) );
+			$n     = $right->left;
+			while ( null !== $n ) {
+				if ( ! $n->deleted && $n->countable ) {
+					$index += $n->length;
+				}
+				$n = $n->left;
+			}
+		}
+	} else {
+		if ( null !== $tname ) {
+			$type = $doc->get( $tname );
+		} elseif ( null !== $typeID ) {
+			if ( getState( $store, $typeID->client ) <= $typeID->clock ) {
+				return null;
+			}
+			$res  = $followUndoneDeletions ? followRedone( $store, $typeID ) : array( 'item' => getItem( $store, $typeID ) );
+			$item = $res['item'];
+			if ( $item instanceof Structs\Item && $item->content instanceof Structs\ContentType ) {
+				$type = $item->content->type;
+			} else {
+				return null;
+			}
+		} else {
+			Lib0\Error::unexpectedCase();
+		}
+		$index = $assoc >= 0 ? $type->_length : 0;
+	}
+	return new Utils\AbsolutePosition( $type, $index, $rpos->assoc );
+}
+
+/**
+ * @param Utils\RelativePosition|null $a Left position.
+ * @param Utils\RelativePosition|null $b Right position.
+ * @return bool
+ */
+function compareRelativePositions( ?Utils\RelativePosition $a, ?Utils\RelativePosition $b ): bool {
+	return $a === $b || (
+		null !== $a &&
+		null !== $b &&
+		$a->tname === $b->tname &&
+		compareIDs( $a->item, $b->item ) &&
+		compareIDs( $a->type, $b->type ) &&
+		$a->assoc === $b->assoc
+	);
 }
 
 /**
@@ -1534,8 +1752,13 @@ function typeListToArray( Types\AbstractType $type ): array {
  * @return array<int,mixed>
  */
 function typeListToArraySnapshot( Types\AbstractType $type, $snapshot ): array {
-	unset( $snapshot );
-	return typeListToArray( $type );
+	$cs = array();
+	for ( $n = $type->_start; null !== $n; $n = $n->right ) {
+		if ( $n->countable && isVisible( $n, $snapshot ) ) {
+			array_push( $cs, ...$n->content->getContent() );
+		}
+	}
+	return $cs;
 }
 
 /**
@@ -1963,30 +2186,80 @@ function getPathTo( Types\AbstractType $parent, Types\AbstractType $child ): arr
 }
 
 /**
- * @param mixed ...$args Arguments.
- * @return void
+ * @param Types\AbstractType $parent   Parent type.
+ * @param string             $key      Key.
+ * @param Utils\Snapshot     $snapshot Snapshot.
+ * @return mixed
  */
-function typeMapGetSnapshot( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function typeMapGetSnapshot( Types\AbstractType $parent, string $key, Utils\Snapshot $snapshot ) {
+	$v = $parent->_map[ $key ] ?? null;
+	while ( null !== $v && ( ! isVisible( $v, $snapshot ) || null === $v->parentSub || $v->parentSub !== $key ) ) {
+		$v = $v->left;
+	}
+	return null === $v ? Lib0\UndefinedValue::getInstance() : $v->content->getContent()[ $v->length - 1 ];
 }
 
 /**
- * @param mixed ...$args Arguments.
- * @return void
+ * @param Types\AbstractType $parent   Parent type.
+ * @param Utils\Snapshot     $snapshot Snapshot.
+ * @return array<string,mixed>
  */
-function typeMapGetAllSnapshot( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function typeMapGetAllSnapshot( Types\AbstractType $parent, Utils\Snapshot $snapshot ): array {
+	$res = array();
+	foreach ( $parent->_map as $key => $_value ) {
+		$value = typeMapGetSnapshot( $parent, (string) $key, $snapshot );
+		if ( ! $value instanceof Lib0\UndefinedValue ) {
+			$res[ (string) $key ] = $value;
+		}
+	}
+	return $res;
 }
 
 /**
- * @param mixed ...$args Arguments.
- * @return void
+ * @param Utils\Doc      $originDoc Origin document.
+ * @param Utils\Snapshot $snapshot  Snapshot.
+ * @param Utils\Doc|null $newDoc    Optional target document.
+ * @return Utils\Doc
  */
-function createDocFromSnapshot( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function createDocFromSnapshot( Utils\Doc $originDoc, Utils\Snapshot $snapshot, ?Utils\Doc $newDoc = null ): Utils\Doc {
+	if ( $originDoc->gc ) {
+		throw new \RuntimeException( 'Garbage-collection must be disabled in `originDoc`!' );
+	}
+	$newDoc  = $newDoc ?? new Utils\Doc();
+	$encoder = new Utils\UpdateEncoderV1();
+	$sv      = $snapshot->sv;
+	$ds      = $snapshot->ds;
+	$originDoc->transact(
+		function ( Utils\Transaction $transaction ) use ( $originDoc, $sv, $ds, $encoder ): void {
+			$size = 0;
+			foreach ( $sv as $clock ) {
+				if ( $clock > 0 ) {
+					++$size;
+				}
+			}
+			Lib0\Encoding::writeVarUint( $encoder->restEncoder, $size );
+			foreach ( $sv as $client => $clock ) {
+				$client = (int) $client;
+				if ( 0 === $clock ) {
+					continue;
+				}
+				if ( $clock < getState( $originDoc->store, $client ) ) {
+					getItemCleanStart( $transaction, createID( $client, $clock ) );
+				}
+				$structs         = $originDoc->store->clients[ $client ] ?? array();
+				$lastStructIndex = findIndexSS( $structs, $clock - 1 );
+				Lib0\Encoding::writeVarUint( $encoder->restEncoder, $lastStructIndex + 1 );
+				$encoder->writeClient( $client );
+				Lib0\Encoding::writeVarUint( $encoder->restEncoder, 0 );
+				for ( $i = 0; $i <= $lastStructIndex; $i++ ) {
+					$structs[ $i ]->write( $encoder, 0 );
+				}
+			}
+			writeDeleteSet( $encoder, $ds );
+		}
+	);
+	applyUpdate( $newDoc, $encoder->toUint8Array(), 'snapshot' );
+	return $newDoc;
 }
 
 /**
@@ -2439,48 +2712,87 @@ function encodeSnapshotV2( Utils\Snapshot $snapshot, ?object $encoder = null ): 
 }
 
 /**
- * @param mixed ...$args Arguments.
- * @return void
+ * @param object $decoder Update decoder.
+ * @return array<int,Structs\AbstractStruct>
  */
-function logUpdate( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function lazyStructReaderStructs( object $decoder ): array {
+	$structs           = array();
+	$numOfStateUpdates = Lib0\Decoding::readVarUint( $decoder->restDecoder );
+	for ( $i = 0; $i < $numOfStateUpdates; $i++ ) {
+		$numberOfStructs = Lib0\Decoding::readVarUint( $decoder->restDecoder );
+		$client          = $decoder->readClient();
+		$clock           = Lib0\Decoding::readVarUint( $decoder->restDecoder );
+		for ( $j = 0; $j < $numberOfStructs; $j++ ) {
+			$info = $decoder->readInfo();
+			if ( 10 === $info ) {
+				$len       = Lib0\Decoding::readVarUint( $decoder->restDecoder );
+				$structs[] = new Structs\Skip( createID( $client, $clock ), $len );
+				$clock    += $len;
+			} elseif ( ( Lib0\Binary::BITS5 & $info ) !== 0 ) {
+				$cantCopyParentInfo = ( $info & ( Lib0\Binary::BIT7 | Lib0\Binary::BIT8 ) ) === 0;
+				$struct             = new Structs\Item(
+					createID( $client, $clock ),
+					null,
+					( $info & Lib0\Binary::BIT8 ) === Lib0\Binary::BIT8 ? $decoder->readLeftID() : null,
+					null,
+					( $info & Lib0\Binary::BIT7 ) === Lib0\Binary::BIT7 ? $decoder->readRightID() : null,
+					$cantCopyParentInfo ? ( $decoder->readParentInfo() ? $decoder->readString() : $decoder->readLeftID() ) : null,
+					$cantCopyParentInfo && ( $info & Lib0\Binary::BIT6 ) === Lib0\Binary::BIT6 ? $decoder->readString() : null,
+					readItemContent( $decoder, $info )
+				);
+				$structs[]          = $struct;
+				$clock             += $struct->length;
+			} else {
+				$len       = $decoder->readLen();
+				$structs[] = new Structs\GC( createID( $client, $clock ), $len );
+				$clock    += $len;
+			}
+		}
+	}
+	return $structs;
 }
 
 /**
- * @param mixed ...$args Arguments.
+ * @param Lib0\Buffer $update Update.
  * @return void
  */
-function logUpdateV2( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function logUpdate( Lib0\Buffer $update ): void {
+	logUpdateV2( $update, Utils\UpdateDecoderV1::class );
 }
 
 /**
- * @param mixed ...$args Arguments.
+ * @param Lib0\Buffer $update   Update.
+ * @param string      $YDecoder Decoder class.
  * @return void
  */
-function decodeUpdate( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function logUpdateV2( Lib0\Buffer $update, string $YDecoder = Utils\UpdateDecoderV1::class ): void {
+	decodeUpdateV2( $update, $YDecoder );
 }
 
 /**
- * @param mixed ...$args Arguments.
- * @return void
+ * @param Lib0\Buffer $update Update.
+ * @return array{structs:array<int,Structs\AbstractStruct>,ds:Utils\DeleteSet}
  */
-function decodeUpdateV2( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function decodeUpdate( Lib0\Buffer $update ): array {
+	return decodeUpdateV2( $update, Utils\UpdateDecoderV1::class );
 }
 
 /**
- * @param mixed ...$args Arguments.
- * @return void
+ * @param Lib0\Buffer $update   Update.
+ * @param string      $YDecoder Decoder class.
+ * @return array{structs:array<int,Structs\AbstractStruct>,ds:Utils\DeleteSet}
  */
-function relativePositionToJSON( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function decodeUpdateV2( Lib0\Buffer $update, string $YDecoder = Utils\UpdateDecoderV1::class ): array {
+	$updateDecoder = new $YDecoder( Lib0\Decoding::createDecoder( $update ) );
+	$lazyDecoder   = new Utils\LazyStructReader( $updateDecoder, false );
+	$structs       = array();
+	for ( $curr = $lazyDecoder->curr; null !== $curr; $curr = $lazyDecoder->next() ) {
+		$structs[] = $curr;
+	}
+	return array(
+		'structs' => $structs,
+		'ds'      => readDeleteSet( $updateDecoder ),
+	);
 }
 
 /**
@@ -2517,12 +2829,172 @@ function isDeleted( Utils\DeleteSet $ds, Utils\ID $id ): bool {
 }
 
 /**
- * @param mixed ...$args Arguments.
+ * @param Types\AbstractType $parent Parent type.
+ * @param Structs\Item|null  $child  Child item.
+ * @return bool
+ */
+function isParentOf( Types\AbstractType $parent, ?Structs\Item $child ): bool {
+	while ( null !== $child ) {
+		if ( $child->parent === $parent ) {
+			return true;
+		}
+		$childParent = $child->parent;
+		$child       = $childParent instanceof Types\AbstractType ? $childParent->_item : null;
+	}
+	return false;
+}
+
+/**
+ * @param Utils\StructStore $store Store.
+ * @param Utils\ID          $id    ID.
+ * @return array{item:Structs\AbstractStruct,diff:int}
+ */
+function followRedone( Utils\StructStore $store, Utils\ID $id ): array {
+	$nextID = $id;
+	$diff   = 0;
+	do {
+		if ( $diff > 0 ) {
+			$nextID = createID( $nextID->client, $nextID->clock + $diff );
+		}
+		$item   = getItem( $store, $nextID );
+		$diff   = $nextID->clock - $item->id->clock;
+		$nextID = $item instanceof Structs\Item ? $item->redone : null;
+	} while ( null !== $nextID && $item instanceof Structs\Item );
+	return array(
+		'item' => $item,
+		'diff' => $diff,
+	);
+}
+
+/**
+ * @param Structs\Item|null $item Item.
+ * @param bool              $keep Keep flag.
  * @return void
  */
-function isParentOf( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function keepItem( ?Structs\Item $item, bool $keep ): void {
+	while ( null !== $item && $item->keep !== $keep ) {
+		$item->keep = $keep;
+		$parent     = $item->parent;
+		$item       = $parent instanceof Types\AbstractType ? $parent->_item : null;
+	}
+}
+
+/**
+ * @param array<int,Utils\StackItem> $stack Stack.
+ * @param Utils\ID                   $id    ID.
+ * @return bool
+ */
+function isDeletedByUndoStack( array $stack, Utils\ID $id ): bool {
+	foreach ( $stack as $stackItem ) {
+		if ( isDeleted( $stackItem->deletions, $id ) ) {
+			return true;
+		}
+	}
+	return false;
+}
+
+/**
+ * @param Utils\Transaction $transaction            Transaction.
+ * @param Structs\Item      $item                   Item to redo.
+ * @param \SplObjectStorage $redoitems              Items to redo.
+ * @param Utils\DeleteSet   $itemsToDelete          Insertions delete set.
+ * @param bool              $ignoreRemoteMapChanges Whether to ignore remote map changes.
+ * @param Utils\UndoManager $um                     Undo manager.
+ * @return Structs\Item|null
+ */
+function redoItem( Utils\Transaction $transaction, Structs\Item $item, \SplObjectStorage $redoitems, Utils\DeleteSet $itemsToDelete, bool $ignoreRemoteMapChanges, Utils\UndoManager $um ): ?Structs\Item {
+	$doc         = $transaction->doc;
+	$store       = $doc->store;
+	$ownClientID = $doc->clientID;
+	$redone      = $item->redone;
+	if ( null !== $redone ) {
+		return getItemCleanStart( $transaction, $redone );
+	}
+	$parentItem = $item->parent instanceof Types\AbstractType ? $item->parent->_item : null;
+	$left       = null;
+	$right      = null;
+
+	if ( null !== $parentItem && true === $parentItem->deleted ) {
+		if ( null === $parentItem->redone && ( ! $redoitems->contains( $parentItem ) || null === redoItem( $transaction, $parentItem, $redoitems, $itemsToDelete, $ignoreRemoteMapChanges, $um ) ) ) {
+			return null;
+		}
+		while ( null !== $parentItem->redone ) {
+			$parentItem = getItemCleanStart( $transaction, $parentItem->redone );
+		}
+	}
+	$parentType = null === $parentItem ? $item->parent : $parentItem->content->type;
+
+	if ( null === $item->parentSub ) {
+		$left  = $item->left;
+		$right = $item;
+		while ( null !== $left ) {
+			$leftTrace = $left;
+			while ( null !== $leftTrace && $leftTrace->parent instanceof Types\AbstractType && $leftTrace->parent->_item !== $parentItem ) {
+				$leftTrace = null === $leftTrace->redone ? null : getItemCleanStart( $transaction, $leftTrace->redone );
+			}
+			if ( null !== $leftTrace && $leftTrace->parent instanceof Types\AbstractType && $leftTrace->parent->_item === $parentItem ) {
+				$left = $leftTrace;
+				break;
+			}
+			$left = $left->left;
+		}
+		while ( null !== $right ) {
+			$rightTrace = $right;
+			while ( null !== $rightTrace && $rightTrace->parent instanceof Types\AbstractType && $rightTrace->parent->_item !== $parentItem ) {
+				$rightTrace = null === $rightTrace->redone ? null : getItemCleanStart( $transaction, $rightTrace->redone );
+			}
+			if ( null !== $rightTrace && $rightTrace->parent instanceof Types\AbstractType && $rightTrace->parent->_item === $parentItem ) {
+				$right = $rightTrace;
+				break;
+			}
+			$right = $right->right;
+		}
+	} else {
+		$right = null;
+		if ( null !== $item->right && ! $ignoreRemoteMapChanges ) {
+			$left = $item;
+			while (
+				null !== $left &&
+				null !== $left->right &&
+				(
+					null !== $left->right->redone ||
+					isDeleted( $itemsToDelete, $left->right->id ) ||
+					isDeletedByUndoStack( $um->undoStack, $left->right->id ) ||
+					isDeletedByUndoStack( $um->redoStack, $left->right->id )
+				)
+			) {
+				$left = $left->right;
+				while ( null !== $left->redone ) {
+					$left = getItemCleanStart( $transaction, $left->redone );
+				}
+			}
+			if ( null !== $left && null !== $left->right ) {
+				return null;
+			}
+		} else {
+			$left = $parentType->_map[ $item->parentSub ] ?? null;
+		}
+		if ( null !== $left && $left->parent instanceof Types\AbstractType && $left->parent->_item !== $parentItem ) {
+			$left = $parentType->_map[ $item->parentSub ] ?? null;
+		}
+	}
+
+	$nextClock    = getState( $store, $ownClientID );
+	$nextId       = createID( $ownClientID, $nextClock );
+	$redoneItem   = new Structs\Item(
+		$nextId,
+		$left,
+		null !== $left ? $left->lastId : null,
+		$right,
+		null !== $right ? $right->id : null,
+		$parentType,
+		$item->parentSub,
+		$item->content->copy()
+	);
+	$item->redone = $nextId;
+	keepItem( $redoneItem, true );
+	$redoneItem->integrate( $transaction, 0 );
+	return $redoneItem;
 }
 
 /**
@@ -2877,129 +3349,620 @@ function logType( ...$args ) {
 }
 
 /**
- * @param mixed ...$args Arguments.
- * @return void
+ * @param array<int,Lib0\Buffer> $updates Updates.
+ * @return Lib0\Buffer
  */
-function mergeUpdates( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function mergeUpdates( array $updates ): Lib0\Buffer {
+	return mergeUpdatesV2( $updates, Utils\UpdateDecoderV1::class, Utils\UpdateEncoderV1::class );
 }
 
 /**
- * @param mixed ...$args Arguments.
- * @return void
+ * @param array<int,Lib0\Buffer> $updates  Updates.
+ * @param string                 $YDecoder Decoder class.
+ * @param string                 $YEncoder Encoder class.
+ * @return Lib0\Buffer
  */
-function mergeUpdatesV2( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function mergeUpdatesV2( array $updates, string $YDecoder = Utils\UpdateDecoderV1::class, string $YEncoder = Utils\UpdateEncoderV1::class ): Lib0\Buffer {
+	if ( 1 === count( $updates ) ) {
+		return $updates[0];
+	}
+	$updateDecoders     = array_map(
+		static fn ( Lib0\Buffer $update ) => new $YDecoder( Lib0\Decoding::createDecoder( $update ) ),
+		$updates
+	);
+	$lazyStructDecoders = array_map(
+		static fn ( object $decoder ): Utils\LazyStructReader => new Utils\LazyStructReader( $decoder, true ),
+		$updateDecoders
+	);
+	$currWrite          = null;
+	$updateEncoder      = new $YEncoder();
+	$lazyStructEncoder  = new Utils\LazyStructWriter( $updateEncoder );
+
+	while ( true ) {
+		$lazyStructDecoders = array_values(
+			array_filter(
+				$lazyStructDecoders,
+				static fn ( Utils\LazyStructReader $dec ): bool => null !== $dec->curr
+			)
+		);
+		usort(
+			$lazyStructDecoders,
+			static function ( Utils\LazyStructReader $dec1, Utils\LazyStructReader $dec2 ): int {
+				if ( $dec1->curr->id->client === $dec2->curr->id->client ) {
+					$clockDiff = $dec1->curr->id->clock - $dec2->curr->id->clock;
+					if ( 0 === $clockDiff ) {
+						if ( get_class( $dec1->curr ) === get_class( $dec2->curr ) ) {
+							return 0;
+						}
+						return $dec1->curr instanceof Structs\Skip ? 1 : -1;
+					}
+					return $clockDiff;
+				}
+				return $dec2->curr->id->client - $dec1->curr->id->client;
+			}
+		);
+		if ( 0 === count( $lazyStructDecoders ) ) {
+			break;
+		}
+		$currDecoder = $lazyStructDecoders[0];
+		$firstClient = $currDecoder->curr->id->client;
+		if ( null !== $currWrite ) {
+			$curr     = $currDecoder->curr;
+			$iterated = false;
+			while (
+				null !== $curr &&
+				$curr->id->clock + $curr->length <= $currWrite['struct']->id->clock + $currWrite['struct']->length &&
+				$curr->id->client >= $currWrite['struct']->id->client
+			) {
+				$curr     = $currDecoder->next();
+				$iterated = true;
+			}
+			if (
+				null === $curr ||
+				$curr->id->client !== $firstClient ||
+				( $iterated && $curr->id->clock > $currWrite['struct']->id->clock + $currWrite['struct']->length )
+			) {
+				continue;
+			}
+
+			if ( $firstClient !== $currWrite['struct']->id->client ) {
+				writeStructToLazyStructWriter( $lazyStructEncoder, $currWrite['struct'], $currWrite['offset'] );
+				$currWrite = array(
+					'struct' => $curr,
+					'offset' => 0,
+				);
+				$currDecoder->next();
+			} elseif ( $currWrite['struct']->id->clock + $currWrite['struct']->length < $curr->id->clock ) {
+				if ( $currWrite['struct'] instanceof Structs\Skip ) {
+					$currWrite['struct']->length = $curr->id->clock + $curr->length - $currWrite['struct']->id->clock;
+				} else {
+					writeStructToLazyStructWriter( $lazyStructEncoder, $currWrite['struct'], $currWrite['offset'] );
+					$diff      = $curr->id->clock - $currWrite['struct']->id->clock - $currWrite['struct']->length;
+					$struct    = new Structs\Skip( createID( $firstClient, $currWrite['struct']->id->clock + $currWrite['struct']->length ), $diff );
+					$currWrite = array(
+						'struct' => $struct,
+						'offset' => 0,
+					);
+				}
+			} else {
+				$diff = $currWrite['struct']->id->clock + $currWrite['struct']->length - $curr->id->clock;
+				if ( $diff > 0 ) {
+					if ( $currWrite['struct'] instanceof Structs\Skip ) {
+						$currWrite['struct']->length -= $diff;
+					} else {
+						$curr = sliceStruct( $curr, $diff );
+					}
+				}
+				if ( ! $currWrite['struct']->mergeWith( $curr ) ) {
+					writeStructToLazyStructWriter( $lazyStructEncoder, $currWrite['struct'], $currWrite['offset'] );
+					$currWrite = array(
+						'struct' => $curr,
+						'offset' => 0,
+					);
+					$currDecoder->next();
+				}
+			}
+		} else {
+			$currWrite = array(
+				'struct' => $currDecoder->curr,
+				'offset' => 0,
+			);
+			$currDecoder->next();
+		}
+		for ( $next = $currDecoder->curr; null !== $next && $next->id->client === $firstClient && $next->id->clock === $currWrite['struct']->id->clock + $currWrite['struct']->length && ! $next instanceof Structs\Skip; $next = $currDecoder->next() ) {
+			writeStructToLazyStructWriter( $lazyStructEncoder, $currWrite['struct'], $currWrite['offset'] );
+			$currWrite = array(
+				'struct' => $next,
+				'offset' => 0,
+			);
+		}
+	}
+	if ( null !== $currWrite ) {
+		writeStructToLazyStructWriter( $lazyStructEncoder, $currWrite['struct'], $currWrite['offset'] );
+	}
+	finishLazyStructWriting( $lazyStructEncoder );
+	$dss = array_map(
+		static fn ( object $decoder ): Utils\DeleteSet => readDeleteSet( $decoder ),
+		$updateDecoders
+	);
+	writeDeleteSet( $updateEncoder, mergeDeleteSets( $dss ) );
+	return $updateEncoder->toUint8Array();
 }
 
 /**
- * @param mixed ...$args Arguments.
- * @return void
+ * @param Lib0\Buffer $update Update.
+ * @return array{from:array<int,int>,to:array<int,int>}
  */
-function parseUpdateMeta( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function parseUpdateMeta( Lib0\Buffer $update ): array {
+	return parseUpdateMetaV2( $update, Utils\UpdateDecoderV1::class );
 }
 
 /**
- * @param mixed ...$args Arguments.
- * @return void
+ * @param Lib0\Buffer $update   Update.
+ * @param string      $YDecoder Decoder class.
+ * @return array{from:array<int,int>,to:array<int,int>}
  */
-function parseUpdateMetaV2( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function parseUpdateMetaV2( Lib0\Buffer $update, string $YDecoder = Utils\UpdateDecoderV1::class ): array {
+	$from          = array();
+	$to            = array();
+	$updateDecoder = new Utils\LazyStructReader( new $YDecoder( Lib0\Decoding::createDecoder( $update ) ), false );
+	$curr          = $updateDecoder->curr;
+	if ( null !== $curr ) {
+		$currClient          = $curr->id->client;
+		$currClock           = $curr->id->clock;
+		$from[ $currClient ] = $currClock;
+		for ( ; null !== $curr; $curr = $updateDecoder->next() ) {
+			if ( $currClient !== $curr->id->client ) {
+				$to[ $currClient ]         = $currClock;
+				$from[ $curr->id->client ] = $curr->id->clock;
+				$currClient                = $curr->id->client;
+			}
+			$currClock = $curr->id->clock + $curr->length;
+		}
+		$to[ $currClient ] = $currClock;
+	}
+	return array(
+		'from' => $from,
+		'to'   => $to,
+	);
 }
 
 /**
- * @param mixed ...$args Arguments.
- * @return void
+ * @param Lib0\Buffer $update Update.
+ * @return Lib0\Buffer
  */
-function encodeStateVectorFromUpdate( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function encodeStateVectorFromUpdate( Lib0\Buffer $update ): Lib0\Buffer {
+	return encodeStateVectorFromUpdateV2( $update, Utils\DSEncoderV1::class, Utils\UpdateDecoderV1::class );
 }
 
 /**
- * @param mixed ...$args Arguments.
- * @return void
+ * @param Lib0\Buffer $update   Update.
+ * @param string      $YEncoder Encoder class.
+ * @param string      $YDecoder Decoder class.
+ * @return Lib0\Buffer
  */
-function encodeStateVectorFromUpdateV2( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function encodeStateVectorFromUpdateV2( Lib0\Buffer $update, string $YEncoder = Utils\DSEncoderV1::class, string $YDecoder = Utils\UpdateDecoderV1::class ): Lib0\Buffer {
+	$encoder       = new $YEncoder();
+	$updateDecoder = new Utils\LazyStructReader( new $YDecoder( Lib0\Decoding::createDecoder( $update ) ), false );
+	$curr          = $updateDecoder->curr;
+	if ( null !== $curr ) {
+		$size         = 0;
+		$currClient   = $curr->id->client;
+		$stopCounting = 0 !== $curr->id->clock;
+		$currClock    = $stopCounting ? 0 : $curr->id->clock + $curr->length;
+		for ( ; null !== $curr; $curr = $updateDecoder->next() ) {
+			if ( $currClient !== $curr->id->client ) {
+				if ( 0 !== $currClock ) {
+					++$size;
+					Lib0\Encoding::writeVarUint( $encoder->restEncoder, $currClient );
+					Lib0\Encoding::writeVarUint( $encoder->restEncoder, $currClock );
+				}
+				$currClient   = $curr->id->client;
+				$currClock    = 0;
+				$stopCounting = 0 !== $curr->id->clock;
+			}
+			if ( $curr instanceof Structs\Skip ) {
+				$stopCounting = true;
+			}
+			if ( ! $stopCounting ) {
+				$currClock = $curr->id->clock + $curr->length;
+			}
+		}
+		if ( 0 !== $currClock ) {
+			++$size;
+			Lib0\Encoding::writeVarUint( $encoder->restEncoder, $currClient );
+			Lib0\Encoding::writeVarUint( $encoder->restEncoder, $currClock );
+		}
+		$enc = Lib0\Encoding::createEncoder();
+		Lib0\Encoding::writeVarUint( $enc, $size );
+		Lib0\Encoding::writeBinaryEncoder( $enc, $encoder->restEncoder );
+		$encoder->restEncoder = $enc;
+		return $encoder->toUint8Array();
+	}
+	Lib0\Encoding::writeVarUint( $encoder->restEncoder, 0 );
+	return $encoder->toUint8Array();
 }
 
 /**
- * @param mixed ...$args Arguments.
- * @return void
+ * @param Lib0\Buffer $update Update.
+ * @param Lib0\Buffer $sv     State vector.
+ * @return Lib0\Buffer
  */
-function encodeRelativePosition( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function diffUpdate( Lib0\Buffer $update, Lib0\Buffer $sv ): Lib0\Buffer {
+	return diffUpdateV2( $update, $sv, Utils\UpdateDecoderV1::class, Utils\UpdateEncoderV1::class );
 }
 
 /**
- * @param mixed ...$args Arguments.
- * @return void
+ * @param Lib0\Buffer $update   Update.
+ * @param Lib0\Buffer $sv       State vector.
+ * @param string      $YDecoder Decoder class.
+ * @param string      $YEncoder Encoder class.
+ * @return Lib0\Buffer
  */
-function decodeRelativePosition( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function diffUpdateV2( Lib0\Buffer $update, Lib0\Buffer $sv, string $YDecoder = Utils\UpdateDecoderV1::class, string $YEncoder = Utils\UpdateEncoderV1::class ): Lib0\Buffer {
+	$state            = decodeStateVector( $sv );
+	$encoder          = new $YEncoder();
+	$lazyStructWriter = new Utils\LazyStructWriter( $encoder );
+	$decoder          = new $YDecoder( Lib0\Decoding::createDecoder( $update ) );
+	$reader           = new Utils\LazyStructReader( $decoder, false );
+	while ( null !== $reader->curr ) {
+		$curr       = $reader->curr;
+		$currClient = $curr->id->client;
+		$svClock    = $state[ $currClient ] ?? 0;
+		if ( $reader->curr instanceof Structs\Skip ) {
+			$reader->next();
+			continue;
+		}
+		if ( $curr->id->clock + $curr->length > $svClock ) {
+			writeStructToLazyStructWriter( $lazyStructWriter, $curr, (int) Lib0\Math::max( $svClock - $curr->id->clock, 0 ) );
+			$reader->next();
+			while ( null !== $reader->curr && $reader->curr->id->client === $currClient ) {
+				writeStructToLazyStructWriter( $lazyStructWriter, $reader->curr, 0 );
+				$reader->next();
+			}
+		} else {
+			while ( null !== $reader->curr && $reader->curr->id->client === $currClient && $reader->curr->id->clock + $reader->curr->length <= $svClock ) {
+				$reader->next();
+			}
+		}
+	}
+	finishLazyStructWriting( $lazyStructWriter );
+	writeDeleteSet( $encoder, readDeleteSet( $decoder ) );
+	return $encoder->toUint8Array();
 }
 
 /**
- * @param mixed ...$args Arguments.
- * @return void
+ * @param Structs\AbstractStruct $left Struct.
+ * @param int                    $diff Split offset.
+ * @return Structs\AbstractStruct
  */
-function diffUpdate( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function sliceStruct( Structs\AbstractStruct $left, int $diff ): Structs\AbstractStruct {
+	if ( $left instanceof Structs\GC ) {
+		return new Structs\GC( createID( $left->id->client, $left->id->clock + $diff ), $left->length - $diff );
+	}
+	if ( $left instanceof Structs\Skip ) {
+		return new Structs\Skip( createID( $left->id->client, $left->id->clock + $diff ), $left->length - $diff );
+	}
+	if ( $left instanceof Structs\Item ) {
+		return new Structs\Item(
+			createID( $left->id->client, $left->id->clock + $diff ),
+			null,
+			createID( $left->id->client, $left->id->clock + $diff - 1 ),
+			null,
+			$left->rightOrigin,
+			$left->parent,
+			$left->parentSub,
+			$left->content->splice( $diff )
+		);
+	}
+	Lib0\Error::unexpectedCase();
 }
 
 /**
- * @param mixed ...$args Arguments.
+ * @param Utils\LazyStructWriter $lazyWriter Lazy writer.
  * @return void
  */
-function diffUpdateV2( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function flushLazyStructWriter( Utils\LazyStructWriter $lazyWriter ): void {
+	if ( $lazyWriter->written > 0 ) {
+		$lazyWriter->clientStructs[]      = array(
+			'written'     => $lazyWriter->written,
+			'restEncoder' => Lib0\Encoding::toUint8Array( $lazyWriter->encoder->restEncoder ),
+		);
+		$lazyWriter->encoder->restEncoder = Lib0\Encoding::createEncoder();
+		$lazyWriter->written              = 0;
+	}
 }
 
 /**
- * @param mixed ...$args Arguments.
+ * @param Utils\LazyStructWriter $lazyWriter Lazy writer.
+ * @param Structs\AbstractStruct $struct     Struct.
+ * @param int                    $offset     Offset.
  * @return void
  */
-function convertUpdateFormatV1ToV2( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function writeStructToLazyStructWriter( Utils\LazyStructWriter $lazyWriter, Structs\AbstractStruct $struct, int $offset ): void {
+	if ( $lazyWriter->written > 0 && $lazyWriter->currClient !== $struct->id->client ) {
+		flushLazyStructWriter( $lazyWriter );
+	}
+	if ( 0 === $lazyWriter->written ) {
+		$lazyWriter->currClient = $struct->id->client;
+		$lazyWriter->encoder->writeClient( $struct->id->client );
+		Lib0\Encoding::writeVarUint( $lazyWriter->encoder->restEncoder, $struct->id->clock + $offset );
+	}
+	$struct->write( $lazyWriter->encoder, $offset );
+	++$lazyWriter->written;
 }
 
 /**
- * @param mixed ...$args Arguments.
+ * @param Utils\LazyStructWriter $lazyWriter Lazy writer.
  * @return void
  */
-function convertUpdateFormatV2ToV1( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function finishLazyStructWriting( Utils\LazyStructWriter $lazyWriter ): void {
+	flushLazyStructWriter( $lazyWriter );
+	$restEncoder = $lazyWriter->encoder->restEncoder;
+	Lib0\Encoding::writeVarUint( $restEncoder, count( $lazyWriter->clientStructs ) );
+	foreach ( $lazyWriter->clientStructs as $partStructs ) {
+		Lib0\Encoding::writeVarUint( $restEncoder, $partStructs['written'] );
+		Lib0\Encoding::writeUint8Array( $restEncoder, $partStructs['restEncoder'] );
+	}
 }
 
 /**
- * @param mixed ...$args Arguments.
- * @return void
+ * @param Lib0\Buffer $update           Update.
+ * @param callable    $blockTransformer Transformer.
+ * @param string      $YDecoder         Decoder class.
+ * @param string      $YEncoder         Encoder class.
+ * @return Lib0\Buffer
  */
-function obfuscateUpdate( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function convertUpdateFormat( Lib0\Buffer $update, callable $blockTransformer, string $YDecoder, string $YEncoder ): Lib0\Buffer {
+	$updateDecoder = new $YDecoder( Lib0\Decoding::createDecoder( $update ) );
+	$lazyDecoder   = new Utils\LazyStructReader( $updateDecoder, false );
+	$updateEncoder = new $YEncoder();
+	$lazyWriter    = new Utils\LazyStructWriter( $updateEncoder );
+	for ( $curr = $lazyDecoder->curr; null !== $curr; $curr = $lazyDecoder->next() ) {
+		writeStructToLazyStructWriter( $lazyWriter, $blockTransformer( $curr ), 0 );
+	}
+	finishLazyStructWriting( $lazyWriter );
+	writeDeleteSet( $updateEncoder, readDeleteSet( $updateDecoder ) );
+	return $updateEncoder->toUint8Array();
 }
 
 /**
- * @param mixed ...$args Arguments.
+ * @param Lib0\Buffer $update Update.
+ * @return Lib0\Buffer
+ */
+function convertUpdateFormatV1ToV2( Lib0\Buffer $update ): Lib0\Buffer {
+	return convertUpdateFormat( $update, static fn ( $block ) => $block, Utils\UpdateDecoderV1::class, Utils\UpdateEncoderV1::class );
+}
+
+/**
+ * @param Lib0\Buffer $update Update.
+ * @return Lib0\Buffer
+ */
+function convertUpdateFormatV2ToV1( Lib0\Buffer $update ): Lib0\Buffer {
+	return convertUpdateFormat( $update, static fn ( $block ) => $block, Utils\UpdateDecoderV1::class, Utils\UpdateEncoderV1::class );
+}
+
+/**
+ * @param Lib0\Buffer              $update Update.
+ * @param array<string,mixed>|null $opts   Obfuscator options.
+ * @return Lib0\Buffer
+ */
+function obfuscateUpdate( Lib0\Buffer $update, ?array $opts = null ): Lib0\Buffer {
+	return convertUpdateFormat( $update, createObfuscator( $opts ?? array() ), Utils\UpdateDecoderV1::class, Utils\UpdateEncoderV1::class );
+}
+
+/**
+ * @param Lib0\Buffer              $update Update.
+ * @param array<string,mixed>|null $opts   Obfuscator options.
+ * @return Lib0\Buffer
+ */
+function obfuscateUpdateV2( Lib0\Buffer $update, ?array $opts = null ): Lib0\Buffer {
+	return obfuscateUpdate( $update, $opts );
+}
+
+/**
+ * @param array<string,mixed> $opts Options.
+ * @return callable
+ */
+function createObfuscator( array $opts ): callable {
+	$formatting           = array_key_exists( 'formatting', $opts ) ? (bool) $opts['formatting'] : true;
+	$subdocs              = array_key_exists( 'subdocs', $opts ) ? (bool) $opts['subdocs'] : true;
+	$yxml                 = array_key_exists( 'yxml', $opts ) ? (bool) $opts['yxml'] : true;
+	$i                    = 0;
+	$mapKeyCache          = array();
+	$nodeNameCache        = array();
+	$formattingKeyCache   = array();
+	$formattingValueCache = array( 'N;' => null );
+	return static function ( $block ) use ( &$i, &$mapKeyCache, &$nodeNameCache, &$formattingKeyCache, &$formattingValueCache, $formatting, $subdocs, $yxml ) {
+		if ( $block instanceof Structs\GC || $block instanceof Structs\Skip ) {
+			return $block;
+		}
+		if ( ! $block instanceof Structs\Item ) {
+			Lib0\Error::unexpectedCase();
+		}
+		$content = $block->content;
+		if ( $content instanceof Structs\ContentType ) {
+			if ( $yxml ) {
+				$type = $content->type;
+				if ( $type instanceof Types\YXmlElement ) {
+					$type->nodeName = obfuscatorSetIfUndefined( $nodeNameCache, $type->nodeName, 'node-' . $i );
+				}
+				if ( $type instanceof Types\YXmlHook ) {
+					$type->hookName = obfuscatorSetIfUndefined( $nodeNameCache, $type->hookName, 'hook-' . $i );
+				}
+			}
+		} elseif ( $content instanceof Structs\ContentAny ) {
+			$content->arr = array_map( static fn (): int => $i, $content->arr );
+		} elseif ( $content instanceof Structs\ContentBinary ) {
+			$content->content = Lib0\Buffer::fromByteArray( array( $i ) );
+		} elseif ( $content instanceof Structs\ContentDoc ) {
+			if ( $subdocs ) {
+				$content->opts      = new \stdClass();
+				$content->doc->guid = (string) $i;
+			}
+		} elseif ( $content instanceof Structs\ContentEmbed ) {
+			$content->embed = new \stdClass();
+		} elseif ( $content instanceof Structs\ContentFormat ) {
+			if ( $formatting ) {
+				$content->key = obfuscatorSetIfUndefined( $formattingKeyCache, $content->key, (string) $i );
+				$valueKey     = obfuscatorValueKey( $content->value );
+				if ( ! array_key_exists( $valueKey, $formattingValueCache ) ) {
+					$formattingValueCache[ $valueKey ] = (object) array( 'i' => $i );
+				}
+				$content->value = $formattingValueCache[ $valueKey ];
+			}
+		} elseif ( $content instanceof Structs\ContentJSON ) {
+			$content->arr = array_map( static fn (): int => $i, $content->arr );
+		} elseif ( $content instanceof Structs\ContentString ) {
+			$content->str = str_repeat( (string) ( $i % 10 ), $content->getLength() );
+		} elseif ( ! $content instanceof Structs\ContentDeleted ) {
+			Lib0\Error::unexpectedCase();
+		}
+		if ( null !== $block->parentSub ) {
+			$block->parentSub = obfuscatorSetIfUndefined( $mapKeyCache, $block->parentSub, (string) $i );
+		}
+		++$i;
+		return $block;
+	};
+}
+
+/**
+ * @param array<string,string> $cache Cache.
+ * @param string               $key   Key.
+ * @param string               $value Value.
+ * @return string
+ */
+function obfuscatorSetIfUndefined( array &$cache, string $key, string $value ): string {
+	if ( ! array_key_exists( $key, $cache ) ) {
+		$cache[ $key ] = $value;
+	}
+	return $cache[ $key ];
+}
+
+/**
+ * @param mixed $value Value.
+ * @return string
+ */
+function obfuscatorValueKey( $value ): string {
+	if ( is_object( $value ) ) {
+		return 'o:' . spl_object_hash( $value );
+	}
+		// phpcs:ignore WordPress.PHP.DiscouragedPHPFunctions.serialize_serialize
+		return serialize( $value );
+}
+
+/**
+ * @param Utils\Transaction $tr        Transaction.
+ * @param Utils\UndoManager $um        Undo manager.
+ * @param Utils\StackItem   $stackItem Stack item.
  * @return void
  */
-function obfuscateUpdateV2( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function clearUndoManagerStackItem( Utils\Transaction $tr, Utils\UndoManager $um, Utils\StackItem $stackItem ): void {
+	iterateDeletedStructs(
+		$tr,
+		$stackItem->deletions,
+		static function ( $item ) use ( $tr, $um ): void {
+			if ( $item instanceof Structs\Item && $um->scopeContainsItem( $tr->doc, $item ) ) {
+				keepItem( $item, false );
+			}
+		}
+	);
+}
+
+/**
+ * @param Utils\UndoManager          $undoManager Undo manager.
+ * @param array<int,Utils\StackItem> $stack       Stack, passed by reference.
+ * @param string                     $eventType   Event type.
+ * @return Utils\StackItem|null
+ */
+function popStackItem( Utils\UndoManager $undoManager, array &$stack, string $eventType ): ?Utils\StackItem {
+	$_tr = null;
+	$doc = $undoManager->doc;
+		transact(
+			$doc,
+			function ( Utils\Transaction $transaction ) use ( $undoManager, &$stack, &$_tr ): void {
+				while ( null === $undoManager->currStackItem ) {
+					$stackItem = array_pop( $stack );
+					if ( null === $stackItem ) {
+						break;
+					}
+					$store           = $transaction->doc->store;
+					$itemsToRedo     = new \SplObjectStorage();
+					$itemsToDelete   = array();
+					$performedChange = false;
+
+					iterateDeletedStructs(
+						$transaction,
+						$stackItem->insertions,
+						static function ( $struct ) use ( $transaction, $store, $undoManager, &$itemsToDelete ): void {
+							if ( $struct instanceof Structs\Item ) {
+								if ( null !== $struct->redone ) {
+									$res = followRedone( $store, $struct->id );
+									if ( $res['diff'] > 0 ) {
+										$res['item'] = getItemCleanStart( $transaction, createID( $res['item']->id->client, $res['item']->id->clock + $res['diff'] ) );
+									}
+									$struct = $res['item'];
+								}
+								if ( $struct instanceof Structs\Item && ! $struct->deleted && $undoManager->scopeContainsItem( $transaction->doc, $struct ) ) {
+									$itemsToDelete[] = $struct;
+								}
+							}
+						}
+					);
+
+					iterateDeletedStructs(
+						$transaction,
+						$stackItem->deletions,
+						static function ( $struct ) use ( $transaction, $undoManager, $stackItem, $itemsToRedo ): void {
+							if (
+							$struct instanceof Structs\Item &&
+							$undoManager->scopeContainsItem( $transaction->doc, $struct ) &&
+							! isDeleted( $stackItem->insertions, $struct->id )
+							) {
+								$itemsToRedo->attach( $struct );
+							}
+						}
+					);
+
+					foreach ( $itemsToRedo as $struct ) {
+						$performedChange = null !== redoItem( $transaction, $struct, $itemsToRedo, $stackItem->insertions, $undoManager->ignoreRemoteMapChanges, $undoManager ) || $performedChange;
+					}
+					for ( $i = count( $itemsToDelete ) - 1; $i >= 0; $i-- ) {
+						$item = $itemsToDelete[ $i ];
+						if ( ( $undoManager->deleteFilter )( $item ) ) {
+							$item->delete( $transaction );
+							$performedChange = true;
+						}
+					}
+					$undoManager->currStackItem = $performedChange ? $stackItem : null;
+				}
+				foreach ( $transaction->changed as $type ) {
+					$subProps = $transaction->changed[ $type ];
+					if ( in_array( null, $subProps, true ) && $type->_searchMarker ) {
+						$type->_searchMarker = array();
+					}
+				}
+				$_tr = $transaction;
+			},
+			$undoManager
+		);
+	$res = $undoManager->currStackItem;
+	if ( null !== $res && null !== $_tr ) {
+		$undoManager->currStackItem = null;
+		$undoManager->emit(
+			'stack-item-popped',
+			array(
+				array(
+					'stackItem'          => $res,
+					'type'               => $eventType,
+					'changedParentTypes' => $_tr->changedParentTypes,
+					'origin'             => $undoManager,
+				),
+				$undoManager,
+			)
+		);
+	}
+	return $res;
 }
 
 /**
@@ -3218,10 +4181,28 @@ function equalDeleteSets( Utils\DeleteSet $ds1, Utils\DeleteSet $ds2 ): bool {
 }
 
 /**
- * @param mixed ...$args Arguments.
- * @return void
+ * @param Utils\Snapshot $snapshot Snapshot.
+ * @param Lib0\Buffer    $update   Update.
+ * @param string         $YDecoder Decoder class.
+ * @return bool
  */
-function snapshotContainsUpdate( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function snapshotContainsUpdateV2( Utils\Snapshot $snapshot, Lib0\Buffer $update, string $YDecoder = Utils\UpdateDecoderV1::class ): bool {
+	$updateDecoder = new $YDecoder( Lib0\Decoding::createDecoder( $update ) );
+	$lazyDecoder   = new Utils\LazyStructReader( $updateDecoder, false );
+	for ( $curr = $lazyDecoder->curr; null !== $curr; $curr = $lazyDecoder->next() ) {
+		if ( ( $snapshot->sv[ $curr->id->client ] ?? 0 ) < $curr->id->clock + $curr->length ) {
+			return false;
+		}
+	}
+	$mergedDS = mergeDeleteSets( array( $snapshot->ds, readDeleteSet( $updateDecoder ) ) );
+	return equalDeleteSets( $snapshot->ds, $mergedDS );
+}
+
+/**
+ * @param Utils\Snapshot $snapshot Snapshot.
+ * @param Lib0\Buffer    $update   Update.
+ * @return bool
+ */
+function snapshotContainsUpdate( Utils\Snapshot $snapshot, Lib0\Buffer $update ): bool {
+	return snapshotContainsUpdateV2( $snapshot, $update, Utils\UpdateDecoderV1::class );
 }

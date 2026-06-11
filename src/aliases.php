@@ -18,6 +18,7 @@ $aliases = array(
 	'Yjs\AbsolutePosition'  => 'Yjs\Utils\AbsolutePosition',
 	'Yjs\AbstractConnector' => 'Yjs\Utils\AbstractConnector',
 	'Yjs\UndoManager'       => 'Yjs\Utils\UndoManager',
+	'Yjs\StackItem'         => 'Yjs\Utils\StackItem',
 	'Yjs\PermanentUserData' => 'Yjs\Utils\PermanentUserData',
 	'Yjs\StructStore'       => 'Yjs\Utils\StructStore',
 	'Yjs\DeleteSet'         => 'Yjs\Utils\DeleteSet',

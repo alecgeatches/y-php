@@ -10,16 +10,32 @@ declare(strict_types=1);
 namespace Yjs\Utils;
 
 /**
- * AbsolutePosition API stub for the Yjs port red baseline.
+ * Absolute location resolved from a relative position.
  */
 class AbsolutePosition {
-	use \Yjs\NotImplementedTrait;
+	/**
+	 * @var \Yjs\Types\AbstractType
+	 */
+	public \Yjs\Types\AbstractType $type;
 
 	/**
-	 * @param mixed ...$args Constructor arguments.
+	 * @var int
 	 */
-	public function __construct( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public int $index;
+
+	/**
+	 * @var int
+	 */
+	public int $assoc;
+
+	/**
+	 * @param \Yjs\Types\AbstractType $type  Type.
+	 * @param int                     $index Absolute index.
+	 * @param int                     $assoc Association.
+	 */
+	public function __construct( \Yjs\Types\AbstractType $type, int $index, int $assoc = 0 ) {
+		$this->type  = $type;
+		$this->index = $index;
+		$this->assoc = $assoc;
 	}
 }

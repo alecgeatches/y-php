@@ -10,16 +10,39 @@ declare(strict_types=1);
 namespace Yjs\Utils;
 
 /**
- * RelativePosition API stub for the Yjs port red baseline.
+ * Stable relative position descriptor.
  */
 class RelativePosition {
-	use \Yjs\NotImplementedTrait;
+	/**
+	 * @var ID|null
+	 */
+	public ?ID $type;
 
 	/**
-	 * @param mixed ...$args Constructor arguments.
+	 * @var string|null
 	 */
-	public function __construct( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public ?string $tname;
+
+	/**
+	 * @var ID|null
+	 */
+	public ?ID $item;
+
+	/**
+	 * @var int
+	 */
+	public int $assoc;
+
+	/**
+	 * @param ID|null     $type  Type id.
+	 * @param string|null $tname Root type name.
+	 * @param ID|null     $item  Item id.
+	 * @param int         $assoc Association.
+	 */
+	public function __construct( ?ID $type, ?string $tname, ?ID $item, int $assoc = 0 ) {
+		$this->type  = $type;
+		$this->tname = $tname;
+		$this->item  = $item;
+		$this->assoc = $assoc;
 	}
 }
