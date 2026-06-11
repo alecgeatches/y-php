@@ -121,3 +121,31 @@ Use the next free `DEC-NNNN` number. Never edit a prior entry's decision; if it 
 - **Decision:** `phpcs.xml.dist` uses `WordPress` + `PHPCompatibilityWP` with DEC-0005 exclusions, and additionally excludes `Generic.Commenting.DocComment.MissingShort`, `Squiz.Commenting.FunctionComment.Missing`, `Squiz.Commenting.FunctionCommentThrowTag.Missing`, and `Universal.NamingConventions.NoReservedKeywordParameterNames`. The Composer package is `phpcompatibility/phpcompatibility-wp`.
 - **Why:** The first M0 lint run showed docblock boilerplate and reserved JS parameter names dominating the signal. Excluding those keeps the lint gate focused on formatting, compatibility, and security while preserving camelCase/lib0 naming. Packagist exposes the PHPCompatibilityWP ruleset package as `phpcompatibility/phpcompatibility-wp`; the unhyphenated name is not installable.
 - **Affects:** all PHP code and future Composer installs/lint runs.
+
+### DEC-0014 — Public API stubs use module namespaces plus top-level aliases
+- **Milestone:** M1
+- **Status:** accepted
+- **Decision:** Stub classes live in the planned module namespaces (`Yjs\Utils\Doc`, `Yjs\Types\YArray`, `Yjs\Structs\Item`, etc.) and `src/aliases.php` registers top-level aliases such as `Yjs\Doc`, `Yjs\YArray`, and `Yjs\ContentString`. Free-function exports live as namespace functions in `src/functions.php`; `Yjs\Yjs` is a static facade that forwards to those functions.
+- **Why:** The directory layout from CONTEXT stays PSR-4-compliant while top-level aliases keep the public API close to the JS export names. PHP cannot safely mirror every JS alias literally (notably `Array`), so later milestones should use the `Y*` class names already used internally by Yjs.
+- **Affects:** all later class implementations, public API docs, translated tests, and any consumer code.
+
+### DEC-0015 — M1 test translation is a named red baseline
+- **Milestone:** M1
+- **Status:** accepted
+- **Decision:** Each exported `yjs/tests/*.tests.js` test is represented by one PHPUnit method with the same test name and source reference. Until behavior milestones replace the bodies, the translated methods enter the public `Doc` stub and fail with `Yjs\NotImplemented`. `testFailsObjectManipulationInDevMode` is explicitly skipped because it relies on JS dev-mode `Object.freeze`, which has no PHP array/object equivalent.
+- **Why:** M1's exit criterion is a suite that compiles and fails for the right reason, not behavioral green tests. Keeping the method names/source references creates stable slots for later agents to port each body without rediscovering the JS test inventory.
+- **Affects:** all later milestone test ports; the skipped dev-mode freeze test should remain skipped unless a PHP-specific invariant is defined.
+
+### DEC-0016 — WPCS underscore-method sniff is excluded for JS parity
+- **Milestone:** M1
+- **Status:** accepted
+- **Decision:** `phpcs.xml.dist` now excludes `PSR2.Methods.MethodDeclaration.Underscore` in addition to the M0 naming exclusions.
+- **Why:** Yjs exposes and internally relies on underscore-prefixed methods such as `_integrate`, `_copy`, `_write`, `_callObserver`, and the test helper `_receive`. Renaming them for style would make source comparison harder and drift from the JS API shape.
+- **Affects:** all type/struct ports and translated test helper code that mirrors underscore-prefixed JS methods.
+
+### DEC-0017 — Yjs scenario fixtures use deterministic client IDs
+- **Milestone:** M1
+- **Status:** accepted
+- **Decision:** `tools/gen-fixtures.mjs` writes `tests/fixtures/yjs-scenarios.json` with `json`, `updateHex`, `stateVectorHex`, and `snapshotHex` captured from real `yjs/src/index.js` scenarios. Each scenario pins `doc.clientID` to a deterministic integer before applying operations.
+- **Why:** Real Yjs `Doc` client IDs are random by default; pinning them keeps regenerated fixtures byte-stable while preserving the exact JS encoder output for representative array, map, and text operations.
+- **Affects:** future fixture-driven byte-parity tests and any new generated Yjs scenario fixtures.

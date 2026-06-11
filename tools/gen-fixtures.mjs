@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url'
 import * as encoding from '../../yjs/node_modules/lib0/encoding.js'
 import * as decoding from '../../yjs/node_modules/lib0/decoding.js'
 import * as prng from '../../yjs/node_modules/lib0/prng.js'
+import * as Y from '../../yjs/src/index.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const fixturesDir = path.join(__dirname, '..', 'tests', 'fixtures')
@@ -227,6 +228,41 @@ const makePrngFixture = () => {
   return { seed, next, helperOps }
 }
 
+const captureYjsScenario = (name, clientID, apply) => {
+  const doc = new Y.Doc({ guid: `y-php-${name}` })
+  doc.clientID = clientID
+  apply(doc)
+
+  return {
+    name,
+    json: doc.toJSON(),
+    updateHex: hex(Y.encodeStateAsUpdate(doc)),
+    stateVectorHex: hex(Y.encodeStateVector(doc)),
+    snapshotHex: hex(Y.encodeSnapshot(Y.snapshot(doc)))
+  }
+}
+
+const makeYjsScenarioFixtures = () => ({
+  source: 'yjs/src/index.js',
+  scenarios: [
+    captureYjsScenario('array-basic', 1, doc => {
+      doc.getArray('array').insert(0, ['hi', 1, true])
+    }),
+    captureYjsScenario('map-nested-array', 2, doc => {
+      const map = doc.getMap('map')
+      const array = new Y.Array()
+      map.set('name', 'Ada')
+      map.set('items', array)
+      array.insert(0, [1, 2, 3])
+    }),
+    captureYjsScenario('text-format', 3, doc => {
+      const text = doc.getText('text')
+      text.insert(0, 'hello')
+      text.format(0, 5, { bold: true })
+    })
+  ]
+})
+
 fs.mkdirSync(fixturesDir, { recursive: true })
 fs.writeFileSync(
   path.join(fixturesDir, 'encoding-primitives.json'),
@@ -235,4 +271,8 @@ fs.writeFileSync(
 fs.writeFileSync(
   path.join(fixturesDir, 'prng.json'),
   `${JSON.stringify(makePrngFixture(), null, 2)}\n`
+)
+fs.writeFileSync(
+  path.join(fixturesDir, 'yjs-scenarios.json'),
+  `${JSON.stringify(makeYjsScenarioFixtures(), null, 2)}\n`
 )

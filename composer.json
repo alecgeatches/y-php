@@ -16,12 +16,19 @@
   "autoload": {
     "psr-4": {
       "Yjs\\": "src/"
-    }
+    },
+    "files": [
+      "src/functions.php",
+      "src/aliases.php"
+    ]
   },
   "autoload-dev": {
     "psr-4": {
       "Yjs\\Tests\\": "tests/"
-    }
+    },
+    "files": [
+      "tests/Support/TestHelper.php"
+    ]
   },
   "config": {
     "allow-plugins": {

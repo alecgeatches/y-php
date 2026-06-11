@@ -11,6 +11,7 @@
     <exclude name="WordPress.NamingConventions.ValidFunctionName"/>
     <exclude name="WordPress.NamingConventions.ValidVariableName"/>
     <exclude name="WordPress.Files.FileName"/>
+    <exclude name="PSR2.Methods.MethodDeclaration.Underscore"/>
     <exclude name="Generic.Commenting.DocComment.MissingShort"/>
     <exclude name="Squiz.Commenting.FunctionComment.Missing"/>
     <exclude name="Squiz.Commenting.FunctionCommentThrowTag.Missing"/>

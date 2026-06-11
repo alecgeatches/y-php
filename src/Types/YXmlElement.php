@@ -1,0 +1,124 @@
+<?php
+/**
+ * YXmlElement public API stub.
+ *
+ * @package Yjs
+ */
+
+declare(strict_types=1);
+
+namespace Yjs\Types;
+
+/**
+ * YXmlElement API stub for the Yjs port red baseline.
+ */
+class YXmlElement extends YXmlFragment {
+	use \Yjs\NotImplementedTrait;
+
+	/**
+	 * @param mixed ...$args Constructor arguments.
+	 */
+	public function __construct( ...$args ) {
+		unset( $args );
+		$this->notImplemented( __METHOD__ );
+	}
+
+	/**
+	 * @param mixed ...$args Arguments.
+	 * @return void
+	 */
+	public function _integrate( ...$args ) {
+		unset( $args );
+		$this->notImplemented( __METHOD__ );
+	}
+
+	/**
+	 * @param mixed ...$args Arguments.
+	 * @return void
+	 */
+	public function _copy( ...$args ) {
+		unset( $args );
+		$this->notImplemented( __METHOD__ );
+	}
+
+	/**
+	 * @param mixed ...$args Arguments.
+	 * @return void
+	 */
+	public function clone( ...$args ) {
+		unset( $args );
+		$this->notImplemented( __METHOD__ );
+	}
+
+	/**
+	 * @param mixed ...$args Arguments.
+	 * @return void
+	 */
+	public function toString( ...$args ) {
+		unset( $args );
+		$this->notImplemented( __METHOD__ );
+	}
+
+	/**
+	 * @param mixed ...$args Arguments.
+	 * @return void
+	 */
+	public function removeAttribute( ...$args ) {
+		unset( $args );
+		$this->notImplemented( __METHOD__ );
+	}
+
+	/**
+	 * @param mixed ...$args Arguments.
+	 * @return void
+	 */
+	public function setAttribute( ...$args ) {
+		unset( $args );
+		$this->notImplemented( __METHOD__ );
+	}
+
+	/**
+	 * @param mixed ...$args Arguments.
+	 * @return void
+	 */
+	public function getAttribute( ...$args ) {
+		unset( $args );
+		$this->notImplemented( __METHOD__ );
+	}
+
+	/**
+	 * @param mixed ...$args Arguments.
+	 * @return void
+	 */
+	public function hasAttribute( ...$args ) {
+		unset( $args );
+		$this->notImplemented( __METHOD__ );
+	}
+
+	/**
+	 * @param mixed ...$args Arguments.
+	 * @return void
+	 */
+	public function getAttributes( ...$args ) {
+		unset( $args );
+		$this->notImplemented( __METHOD__ );
+	}
+
+	/**
+	 * @param mixed ...$args Arguments.
+	 * @return void
+	 */
+	public function toDOM( ...$args ) {
+		unset( $args );
+		$this->notImplemented( __METHOD__ );
+	}
+
+	/**
+	 * @param mixed ...$args Arguments.
+	 * @return void
+	 */
+	public function _write( ...$args ) {
+		unset( $args );
+		$this->notImplemented( __METHOD__ );
+	}
+}
