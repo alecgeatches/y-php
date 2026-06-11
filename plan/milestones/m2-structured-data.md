@@ -1,50 +1,46 @@
-# M2 — Structured data: Doc + YMap + YArray
+# M2 — Structured data: Doc + YMap + YArray (overview)
 
-The keystone milestone. It builds the entire CRDT core (everything except the rich-text/XML specifics) and the first real interop. Largest milestone — `Item` (~816 lines) and `AbstractType` (~985 lines) are the hard parts. Consider sub-decomposing.
+The keystone milestone — it builds the entire CRDT core and the first real interop. It is **split into six parts** (`m2-1` … `m2-6`); this file is the map. Each part is a self-contained task with its own exit criterion; assign one agent per part using `AGENT_BRIEF_TEMPLATE.md`.
 
-## Goal
+## Goal (milestone-level)
 
-A working `Doc` with `YMap` and `YArray`, plus `applyUpdate` / `encodeStateAsUpdate` / `encodeStateVector`, converging across simulated clients and byte-matching JS.
+A working `Doc` with `YArray` and `YMap`, plus `applyUpdate` / `encodeStateAsUpdate` / `encodeStateVector`, converging across simulated clients and byte-matching JS.
 
 ## Prerequisites
 
-M0 (primitives) and M1 (stubs + translated tests + harness).
+M0 (primitives + tooling gate) and M1 (stubs + translated tests + harness).
 
-## Implement in dependency order
+## How it was split, and the task-size rule
+
+A good part is **one cohesive layer that can turn some check green on its own** (unit tests, byte-fixtures, or a round-trip) — roughly 1–4 substantial source files, holdable in one agent's context, reviewable in one sitting.
+
+- Layers *below* the engine (codecs, stores, structs/content) isolate cleanly and are byte-fixture-verifiable → M2.1, M2.2, M2.3.
+- The **integration core** (`Item` ↔ `AbstractType` ↔ `Transaction` ↔ `Doc` ↔ `encoding`) is co-dependent — splitting it yields pieces no test can exercise — so it stays whole even though it's the largest → M2.4.
+- The public types *above* the engine isolate cleanly again → M2.5, M2.6.
+
+## Parts and dependency order
 
 ```
-ID (createID, compareIDs)
-  → UpdateEncoderV1 / UpdateDecoderV1        (struct-aware wrappers over Lib0\Encoding)
-    → StructStore
-      → DeleteSet
-        → AbstractStruct → GC, Skip
-          → Content* (String, JSON, Any, Binary, Embed, Format, Deleted, Type, Doc)
-            → Item                            (the keystone)
-              → AbstractType + EventHandler + YEvent
-                → Transaction
-                  → Doc
-                    → Utils\Encoding          (readStructs, applyUpdate, encodeStateAsUpdate,
-                                                encodeStateVector, integrateStructs, pending handling)
-                      → YArray, YMap
-                        → y-protocols/sync subset (writeSyncStep1, readSyncMessage, writeUpdate)
+M2.1 ids-and-codecs        ID, UpdateEncoderV1/DecoderV1       → encoder byte-fixtures
+  └─ M2.2 store-and-deleteset   StructStore, DeleteSet         → unit + DS byte-fixtures
+       └─ M2.3 structs-and-content  AbstractStruct, GC, Skip, Content*  → per-content byte-fixtures
+            └─ M2.4 integration-core  Item, AbstractType, Transaction,
+                                       Doc, encoding, sync subset → doc.tests + round-trip fixtures
+                 ├─ M2.5 yarray   full YArray API → y-array unit+fuzz+conformance
+                 └─ M2.6 ymap     full YMap API   → y-map unit+fuzz+conformance   (parallel with M2.5)
 ```
 
-Source files: [yjs/src/utils/ID.js](../../../yjs/src/utils/ID.js), [UpdateEncoder.js](../../../yjs/src/utils/UpdateEncoder.js), [UpdateDecoder.js](../../../yjs/src/utils/UpdateDecoder.js), [StructStore.js](../../../yjs/src/utils/StructStore.js), [DeleteSet.js](../../../yjs/src/utils/DeleteSet.js), [structs/](../../../yjs/src/structs/), [types/AbstractType.js](../../../yjs/src/types/AbstractType.js), [Transaction.js](../../../yjs/src/utils/Transaction.js), [Doc.js](../../../yjs/src/utils/Doc.js), [utils/encoding.js](../../../yjs/src/utils/encoding.js), [YArray.js](../../../yjs/src/types/YArray.js), [YMap.js](../../../yjs/src/types/YMap.js).
+M2.1 → M2.4 are strictly sequential. M2.5 and M2.6 can run in parallel once M2.4 lands. V1 encoding only throughout (DEC-0003).
 
-The `y-protocols/sync` subset is needed because `tests/Support` convergence (`compare(users)`) exchanges sync messages between `TestYInstance`s.
+| Part | File |
+|---|---|
+| M2.1 IDs & update codecs | [m2-1-ids-and-codecs.md](m2-1-ids-and-codecs.md) |
+| M2.2 Struct store & delete set | [m2-2-store-and-deleteset.md](m2-2-store-and-deleteset.md) |
+| M2.3 Structs & content | [m2-3-structs-and-content.md](m2-3-structs-and-content.md) |
+| M2.4 Integration core | [m2-4-integration-core.md](m2-4-integration-core.md) |
+| M2.5 YArray | [m2-5-yarray.md](m2-5-yarray.md) |
+| M2.6 YMap | [m2-6-ymap.md](m2-6-ymap.md) |
 
-## Tests to turn green
+## Milestone exit criterion
 
-- `tests/Unit/DocTest`, `MapTest`, `ArrayTest` — unit **and** fuzz (`applyRandomTests`).
-- `tests/Conformance/` — Map/Array fixtures decode and re-encode byte-identically to JS; seed-replayed fuzz scenarios converge to the same bytes as JS.
-
-## Gotchas
-
-- **`Item` integration** is the algorithmic heart — the conflict resolution and the search-marker optimization in `AbstractType`/`Item`. Mirror the JS control flow precisely; do not "simplify."
-- **`ContentAny`** exercises `writeAny`'s full type matrix — re-confirm hazards 3/4/5 hold end-to-end here.
-- **State vector** ordering (clients sorted) must match JS exactly or `encodeStateVector` bytes diverge.
-- This is where byte-compat bugs from M0 will first show up under real load. Lean on the conformance layer to localize them.
-
-## Exit criterion
-
-`doc`, `y-map`, `y-array` unit + fuzz tests green; their fixtures byte-match real JS in both directions; multi-user convergence matches JS bytes for many seeds.
+All six parts complete: `doc`, `y-map`, `y-array` unit + fuzz tests green; their fixtures byte-match real JS in both directions; multi-user convergence matches JS bytes for many seeds; `composer lint` clean. After M2, the next type milestone is M3 (YText).
