@@ -209,58 +209,58 @@ final class Yjs {
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function applyUpdate( ...$args ) {
-		applyUpdate( ...$args );
+		return applyUpdate( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function applyUpdateV2( ...$args ) {
-		applyUpdateV2( ...$args );
+		return applyUpdateV2( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function readUpdate( ...$args ) {
-		readUpdate( ...$args );
+		return readUpdate( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function readUpdateV2( ...$args ) {
-		readUpdateV2( ...$args );
+		return readUpdateV2( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function encodeStateAsUpdate( ...$args ) {
-		encodeStateAsUpdate( ...$args );
+		return encodeStateAsUpdate( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function encodeStateAsUpdateV2( ...$args ) {
-		encodeStateAsUpdateV2( ...$args );
+		return encodeStateAsUpdateV2( ...$args );
 	}
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function encodeStateVector( ...$args ) {
-		encodeStateVector( ...$args );
+		return encodeStateVector( ...$args );
 	}
 
 	/**
@@ -297,10 +297,10 @@ final class Yjs {
 
 	/**
 	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
 	public static function decodeStateVector( ...$args ) {
-		decodeStateVector( ...$args );
+		return decodeStateVector( ...$args );
 	}
 
 	/**

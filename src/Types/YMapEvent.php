@@ -10,16 +10,21 @@ declare(strict_types=1);
 namespace Yjs\Types;
 
 /**
- * YMapEvent API stub for the Yjs port red baseline.
+ * Event emitted by YMap changes.
  */
 class YMapEvent extends \Yjs\Utils\YEvent {
-	use \Yjs\NotImplementedTrait;
+	/**
+	 * @var array<int,string|null>
+	 */
+	public array $keysChanged;
 
 	/**
-	 * @param mixed ...$args Constructor arguments.
+	 * @param YMap                   $ymap        Changed map.
+	 * @param \Yjs\Utils\Transaction $transaction Transaction.
+	 * @param array<int,string|null> $subs        Changed keys.
 	 */
-	public function __construct( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function __construct( YMap $ymap, \Yjs\Utils\Transaction $transaction, array $subs ) {
+		parent::__construct( $ymap, $transaction );
+		$this->keysChanged = $subs;
 	}
 }

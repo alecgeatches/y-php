@@ -36,12 +36,16 @@ class YXmlHook extends YMap {
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return YXmlHook
 	 */
-	public function clone( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function clone(): YXmlHook {
+		$hook = new YXmlHook( $this->hookName );
+		$this->forEach(
+			static function ( $value, string $key ) use ( $hook ): void {
+				$hook->set( $key, $value instanceof AbstractType ? $value->clone() : $value );
+			}
+		);
+		return $hook;
 	}
 
 	/**

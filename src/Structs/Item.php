@@ -14,7 +14,7 @@ use Yjs\Lib0\Error;
 use Yjs\Utils\ID;
 
 /**
- * Partial port of yjs/src/structs/Item.js needed by store/delete-set logic.
+ * Port of yjs/src/structs/Item.js.
  */
 class Item extends AbstractStruct {
 	/**
@@ -159,8 +159,6 @@ class Item extends AbstractStruct {
 	 * @return int|null
 	 */
 	public function getMissing( $transaction, $store ): ?int {
-		unset( $transaction );
-
 		if ( null !== $this->origin && $this->origin->client !== $this->id->client && $this->origin->clock >= \Yjs\getState( $store, $this->origin->client ) ) {
 			return $this->origin->client;
 		}
@@ -171,7 +169,32 @@ class Item extends AbstractStruct {
 			return $this->parent->client;
 		}
 
-		Error::methodUnimplemented();
+		if ( null !== $this->origin ) {
+			$this->left   = \Yjs\getItemCleanEnd( $transaction, $store, $this->origin );
+			$this->origin = $this->left->lastId;
+		}
+		if ( null !== $this->rightOrigin ) {
+			$this->right       = \Yjs\getItemCleanStart( $transaction, $this->rightOrigin );
+			$this->rightOrigin = $this->right->id;
+		}
+		if ( ( null !== $this->left && $this->left instanceof GC ) || ( null !== $this->right && $this->right instanceof GC ) ) {
+			$this->parent = null;
+		} elseif ( null === $this->parent ) {
+			if ( null !== $this->left ) {
+				$this->parent    = $this->left->parent;
+				$this->parentSub = $this->left->parentSub;
+			} elseif ( null !== $this->right ) {
+				$this->parent    = $this->right->parent;
+				$this->parentSub = $this->right->parentSub;
+			}
+		} elseif ( $this->parent instanceof ID ) {
+			$parentItem = \Yjs\getItem( $store, $this->parent );
+			if ( $parentItem instanceof GC ) {
+				$this->parent = null;
+			} else {
+				$this->parent = $parentItem->content->type;
+			}
+		}
 		return null;
 	}
 
@@ -181,8 +204,91 @@ class Item extends AbstractStruct {
 	 * @return void
 	 */
 	public function integrate( $transaction, int $offset ): void {
-		unset( $transaction, $offset );
-		Error::methodUnimplemented();
+		if ( 0 < $offset ) {
+			$this->id->clock += $offset;
+			$this->left       = \Yjs\getItemCleanEnd( $transaction, $transaction->doc->store, \Yjs\createID( $this->id->client, $this->id->clock - 1 ) );
+			$this->origin     = $this->left->lastId;
+			$this->content    = $this->content->splice( $offset );
+			$this->length    -= $offset;
+		}
+
+		if ( null !== $this->parent ) {
+			if ( ( null === $this->left && ( null === $this->right || null !== $this->right->left ) ) || ( null !== $this->left && $this->left->right !== $this->right ) ) {
+				$left = $this->left;
+				if ( null !== $left ) {
+					$o = $left->right;
+				} elseif ( null !== $this->parentSub ) {
+					$o = $this->parent->_map[ $this->parentSub ] ?? null;
+					while ( null !== $o && null !== $o->left ) {
+						$o = $o->left;
+					}
+				} else {
+					$o = $this->parent->_start;
+				}
+
+				$conflictingItems  = new \SplObjectStorage();
+				$itemsBeforeOrigin = new \SplObjectStorage();
+				while ( null !== $o && $o !== $this->right ) {
+					$itemsBeforeOrigin->attach( $o );
+					$conflictingItems->attach( $o );
+					if ( \Yjs\compareIDs( $this->origin, $o->origin ) ) {
+						if ( $o->id->client < $this->id->client ) {
+							$left             = $o;
+							$conflictingItems = new \SplObjectStorage();
+						} elseif ( \Yjs\compareIDs( $this->rightOrigin, $o->rightOrigin ) ) {
+							break;
+						}
+					} elseif ( null !== $o->origin && $itemsBeforeOrigin->contains( \Yjs\getItem( $transaction->doc->store, $o->origin ) ) ) {
+						if ( ! $conflictingItems->contains( \Yjs\getItem( $transaction->doc->store, $o->origin ) ) ) {
+							$left             = $o;
+							$conflictingItems = new \SplObjectStorage();
+						}
+					} else {
+						break;
+					}
+					$o = $o->right;
+				}
+				$this->left = $left;
+			}
+
+			if ( null !== $this->left ) {
+				$right             = $this->left->right;
+				$this->right       = $right;
+				$this->left->right = $this;
+			} else {
+				if ( null !== $this->parentSub ) {
+					$r = $this->parent->_map[ $this->parentSub ] ?? null;
+					while ( null !== $r && null !== $r->left ) {
+						$r = $r->left;
+					}
+				} else {
+					$r                    = $this->parent->_start;
+					$this->parent->_start = $this;
+				}
+				$this->right = $r;
+			}
+
+			if ( null !== $this->right ) {
+				$this->right->left = $this;
+			} elseif ( null !== $this->parentSub ) {
+				$this->parent->_map[ $this->parentSub ] = $this;
+				if ( null !== $this->left ) {
+					$this->left->delete( $transaction );
+				}
+			}
+
+			if ( null === $this->parentSub && $this->countable && ! $this->deleted ) {
+				$this->parent->_length += $this->length;
+			}
+			\Yjs\addStruct( $transaction->doc->store, $this );
+			$this->content->integrate( $transaction, $this );
+			\Yjs\addChangedTypeToTransaction( $transaction, $this->parent, $this->parentSub );
+			if ( ( null !== $this->parent->_item && $this->parent->_item->deleted ) || ( null !== $this->parentSub && null !== $this->right ) ) {
+				$this->delete( $transaction );
+			}
+		} else {
+			( new GC( $this->id, $this->length ) )->integrate( $transaction, 0 );
+		}
 	}
 
 	/**
@@ -190,8 +296,41 @@ class Item extends AbstractStruct {
 	 * @return bool
 	 */
 	public function mergeWith( AbstractStruct $right ): bool {
-		unset( $right );
-		Error::methodUnimplemented();
+		if (
+			get_class( $this ) === get_class( $right ) &&
+			$right instanceof Item &&
+			\Yjs\compareIDs( $right->origin, $this->lastId ) &&
+			$this->right === $right &&
+			\Yjs\compareIDs( $this->rightOrigin, $right->rightOrigin ) &&
+			$this->id->client === $right->id->client &&
+			$this->id->clock + $this->length === $right->id->clock &&
+			$this->deleted === $right->deleted &&
+			null === $this->redone &&
+			null === $right->redone &&
+			get_class( $this->content ) === get_class( $right->content ) &&
+			$this->content->mergeWith( $right->content )
+		) {
+			$searchMarker = $this->parent->_searchMarker ?? null;
+			if ( null !== $searchMarker ) {
+				foreach ( $searchMarker as $marker ) {
+					if ( $marker->p === $right ) {
+						$marker->p = $this;
+						if ( ! $this->deleted && $this->countable ) {
+							$marker->index -= $this->length;
+						}
+					}
+				}
+			}
+			if ( $right->keep ) {
+				$this->keep = true;
+			}
+			$this->right = $right->right;
+			if ( null !== $this->right ) {
+				$this->right->left = $this;
+			}
+			$this->length += $right->length;
+			return true;
+		}
 		return false;
 	}
 
@@ -200,9 +339,15 @@ class Item extends AbstractStruct {
 	 * @return void
 	 */
 	public function delete( $transaction ): void {
-		unset( $transaction );
 		if ( ! $this->getDeleted() ) {
+			$parent = $this->parent;
+			if ( $this->countable && null === $this->parentSub ) {
+				$parent->_length -= $this->length;
+			}
 			$this->markDeleted();
+			\Yjs\addToDeleteSet( $transaction->deleteSet, $this->id->client, $this->id->clock, $this->length );
+			\Yjs\addChangedTypeToTransaction( $transaction, $parent, $this->parentSub );
+			$this->content->delete( $transaction );
 		}
 	}
 
@@ -212,8 +357,15 @@ class Item extends AbstractStruct {
 	 * @return void
 	 */
 	public function gc( $store, bool $parentGCd ): void {
-		unset( $store, $parentGCd );
-		Error::methodUnimplemented();
+		if ( ! $this->deleted ) {
+			Error::unexpectedCase();
+		}
+		$this->content->gc( $store );
+		if ( $parentGCd ) {
+			\Yjs\replaceStruct( $store, $this, new GC( $this->id, $this->length ) );
+		} else {
+			$this->content = new ContentDeleted( $this->length );
+		}
 	}
 
 	/**
@@ -223,8 +375,46 @@ class Item extends AbstractStruct {
 	 * @return void
 	 */
 	public function write( $encoder, int $offset, int $unused = 0 ): void {
-		unset( $encoder, $offset, $unused );
-		Error::methodUnimplemented();
+		unset( $unused );
+		$origin      = 0 < $offset ? \Yjs\createID( $this->id->client, $this->id->clock + $offset - 1 ) : $this->origin;
+		$rightOrigin = $this->rightOrigin;
+		$parentSub   = $this->parentSub;
+		$info        = ( $this->content->getRef() & Binary::BITS5 ) |
+			( null === $origin ? 0 : Binary::BIT8 ) |
+			( null === $rightOrigin ? 0 : Binary::BIT7 ) |
+			( null === $parentSub ? 0 : Binary::BIT6 );
+		$encoder->writeInfo( $info );
+		if ( null !== $origin ) {
+			$encoder->writeLeftID( $origin );
+		}
+		if ( null !== $rightOrigin ) {
+			$encoder->writeRightID( $rightOrigin );
+		}
+		if ( null === $origin && null === $rightOrigin ) {
+			$parent = $this->parent;
+			if ( is_object( $parent ) && property_exists( $parent, '_item' ) ) {
+				$parentItem = $parent->_item;
+				if ( null === $parentItem ) {
+					$encoder->writeParentInfo( true );
+					$encoder->writeString( \Yjs\findRootTypeKey( $parent ) );
+				} else {
+					$encoder->writeParentInfo( false );
+					$encoder->writeLeftID( $parentItem->id );
+				}
+			} elseif ( is_string( $parent ) ) {
+				$encoder->writeParentInfo( true );
+				$encoder->writeString( $parent );
+			} elseif ( $parent instanceof ID ) {
+				$encoder->writeParentInfo( false );
+				$encoder->writeLeftID( $parent );
+			} else {
+				Error::unexpectedCase();
+			}
+			if ( null !== $parentSub ) {
+				$encoder->writeString( $parentSub );
+			}
+		}
+		$this->content->write( $encoder, $offset );
 	}
 
 	/**

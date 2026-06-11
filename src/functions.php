@@ -10,12 +10,103 @@ declare(strict_types=1);
 namespace Yjs;
 
 /**
- * @param mixed ...$args Arguments.
+ * @param Types\AbstractType $t Type.
+ * @return array<int,Structs\Item>
+ */
+function getTypeChildren( Types\AbstractType $t ): array {
+	$arr = array();
+	for ( $s = $t->_start; null !== $s; $s = $s->right ) {
+		$arr[] = $s;
+	}
+	return $arr;
+}
+
+/**
+ * @return int
+ */
+function nextSearchMarkerTimestamp(): int {
+	static $timestamp = 0;
+	return $timestamp++;
+}
+
+/**
+ * @return Utils\EventHandler
+ */
+function createEventHandler(): Utils\EventHandler {
+	return new Utils\EventHandler();
+}
+
+/**
+ * @param Utils\EventHandler $eventHandler Event handler.
+ * @param callable           $f            Listener.
  * @return void
  */
-function getTypeChildren( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function addEventHandlerListener( Utils\EventHandler $eventHandler, callable $f ): void {
+	$eventHandler->l[] = $f;
+}
+
+/**
+ * @param Utils\EventHandler $eventHandler Event handler.
+ * @param callable           $f            Listener.
+ * @return void
+ */
+function removeEventHandlerListener( Utils\EventHandler $eventHandler, callable $f ): void {
+	$eventHandler->l = array_values(
+		array_filter(
+			$eventHandler->l,
+			static fn ( callable $g ): bool => $f !== $g
+		)
+	);
+}
+
+/**
+ * @param Utils\EventHandler $eventHandler Event handler.
+ * @param mixed              $arg0         First argument.
+ * @param mixed              $arg1         Second argument.
+ * @return void
+ */
+function callEventHandlerListeners( Utils\EventHandler $eventHandler, $arg0, $arg1 ): void {
+	$listeners = $eventHandler->l;
+	foreach ( $listeners as $listener ) {
+		$listener( $arg0, $arg1 );
+	}
+}
+
+/**
+ * @param Types\AbstractType $type        Changed type.
+ * @param Utils\Transaction  $transaction Transaction.
+ * @param Utils\YEvent       $event       Event.
+ * @return void
+ */
+function callTypeObservers( Types\AbstractType $type, Utils\Transaction $transaction, Utils\YEvent $event ): void {
+	$changedType = $type;
+	while ( true ) {
+		$events                                   = $transaction->changedParentTypes->contains( $type ) ? $transaction->changedParentTypes[ $type ] : array();
+		$events[]                                 = $event;
+		$transaction->changedParentTypes[ $type ] = $events;
+		if ( null === $type->_item ) {
+			break;
+		}
+		$type = $type->_item->parent;
+	}
+	callEventHandlerListeners( $changedType->_eH, $event, $transaction );
+}
+
+/**
+ * @param Utils\Transaction  $transaction Transaction.
+ * @param Types\AbstractType $type        Changed type.
+ * @param string|null        $parentSub   Changed parent key.
+ * @return void
+ */
+function addChangedTypeToTransaction( Utils\Transaction $transaction, Types\AbstractType $type, ?string $parentSub ): void {
+	$item = $type->_item;
+	if ( null === $item || ( $item->id->clock < ( $transaction->beforeState[ $item->id->client ] ?? 0 ) && ! $item->deleted ) ) {
+		$subs = $transaction->changed->contains( $type ) ? $transaction->changed[ $type ] : array();
+		if ( ! in_array( $parentSub, $subs, true ) ) {
+			$subs[] = $parentSub;
+		}
+		$transaction->changed[ $type ] = $subs;
+	}
 }
 
 /**
@@ -70,6 +161,13 @@ function createID( int $client, int $clock ): Utils\ID {
  */
 function compareIDs( ?Utils\ID $a, ?Utils\ID $b ): bool {
 	return $a === $b || ( null !== $a && null !== $b && $a->client === $b->client && $a->clock === $b->clock );
+}
+
+/**
+ * @return int
+ */
+function generateNewClientId(): int {
+	return Lib0\Random::uint32();
 }
 
 /**
@@ -634,12 +732,578 @@ function readYXmlText( object $decoder ): Types\YXmlText {
 }
 
 /**
- * @param mixed ...$args Arguments.
+ * @param array<int,Types\ArraySearchMarker> $searchMarker Search markers.
+ * @param Structs\Item                       $p            Item.
+ * @param int                                $index        Index.
+ * @return Types\ArraySearchMarker
+ */
+function markPosition( array &$searchMarker, Structs\Item $p, int $index ): Types\ArraySearchMarker {
+	if ( count( $searchMarker ) >= 80 ) {
+		$marker = $searchMarker[0];
+		foreach ( $searchMarker as $candidate ) {
+			if ( $candidate->timestamp < $marker->timestamp ) {
+				$marker = $candidate;
+			}
+		}
+		overwriteMarker( $marker, $p, $index );
+		return $marker;
+	}
+	$marker         = new Types\ArraySearchMarker( $p, $index );
+	$searchMarker[] = $marker;
+	return $marker;
+}
+
+/**
+ * @param Types\ArraySearchMarker $marker Marker.
+ * @param Structs\Item            $p      Item.
+ * @param int                     $index  Index.
  * @return void
  */
-function typeListToArraySnapshot( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function overwriteMarker( Types\ArraySearchMarker $marker, Structs\Item $p, int $index ): void {
+	$marker->p->marker = false;
+	$marker->p         = $p;
+	$p->marker         = true;
+	$marker->index     = $index;
+	$marker->timestamp = nextSearchMarkerTimestamp();
+}
+
+/**
+ * @param Types\ArraySearchMarker $marker Marker.
+ * @return void
+ */
+function refreshMarkerTimestamp( Types\ArraySearchMarker $marker ): void {
+	$marker->timestamp = nextSearchMarkerTimestamp();
+}
+
+/**
+ * @param Types\AbstractType $yarray Type.
+ * @param int                $index  Index.
+ * @return Types\ArraySearchMarker|null
+ */
+function findMarker( Types\AbstractType $yarray, int $index ): ?Types\ArraySearchMarker {
+	if ( null === $yarray->_start || 0 === $index || null === $yarray->_searchMarker ) {
+		return null;
+	}
+	$marker = null;
+	foreach ( $yarray->_searchMarker as $candidate ) {
+		if ( null === $marker || abs( $index - $candidate->index ) < abs( $index - $marker->index ) ) {
+			$marker = $candidate;
+		}
+	}
+	$p      = $yarray->_start;
+	$pindex = 0;
+	if ( null !== $marker ) {
+		$p      = $marker->p;
+		$pindex = $marker->index;
+		refreshMarkerTimestamp( $marker );
+	}
+	while ( null !== $p->right && $pindex < $index ) {
+		if ( ! $p->deleted && $p->countable ) {
+			if ( $index < $pindex + $p->length ) {
+				break;
+			}
+			$pindex += $p->length;
+		}
+		$p = $p->right;
+	}
+	while ( null !== $p->left && $pindex > $index ) {
+		$p = $p->left;
+		if ( ! $p->deleted && $p->countable ) {
+			$pindex -= $p->length;
+		}
+	}
+	while ( null !== $p->left && $p->left->id->client === $p->id->client && $p->left->id->clock + $p->left->length === $p->id->clock ) {
+		$p = $p->left;
+		if ( ! $p->deleted && $p->countable ) {
+			$pindex -= $p->length;
+		}
+	}
+	if ( null !== $marker && abs( $marker->index - $pindex ) < $p->parent->_length / 80 ) {
+		overwriteMarker( $marker, $p, $pindex );
+		return $marker;
+	}
+	return markPosition( $yarray->_searchMarker, $p, $pindex );
+}
+
+/**
+ * @param array<int,Types\ArraySearchMarker> $searchMarker Search markers.
+ * @param int                                $index        Index.
+ * @param int                                $len          Change length.
+ * @return void
+ */
+function updateMarkerChanges( array &$searchMarker, int $index, int $len ): void {
+	for ( $i = count( $searchMarker ) - 1; $i >= 0; $i-- ) {
+		$m = $searchMarker[ $i ];
+		if ( 0 < $len ) {
+			$p         = $m->p;
+			$p->marker = false;
+			while ( null !== $p && ( $p->deleted || ! $p->countable ) ) {
+				$p = $p->left;
+				if ( null !== $p && ! $p->deleted && $p->countable ) {
+					$m->index -= $p->length;
+				}
+			}
+			if ( null === $p || true === $p->marker ) {
+				array_splice( $searchMarker, $i, 1 );
+				continue;
+			}
+			$m->p      = $p;
+			$p->marker = true;
+		}
+		if ( $index < $m->index || ( 0 < $len && $index === $m->index ) ) {
+			$m->index = Lib0\Math::max( $index, $m->index + $len );
+		}
+	}
+}
+
+/**
+ * @param Types\AbstractType $type  Type.
+ * @param int                $start Start.
+ * @param int                $end   End.
+ * @return array<int,mixed>
+ */
+function typeListSlice( Types\AbstractType $type, int $start, int $end ): array {
+	if ( $start < 0 ) {
+		$start = $type->_length + $start;
+	}
+	if ( $end < 0 ) {
+		$end = $type->_length + $end;
+	}
+	$len = $end - $start;
+	$cs  = array();
+	for ( $n = $type->_start; null !== $n && 0 < $len; $n = $n->right ) {
+		if ( $n->countable && ! $n->deleted ) {
+			$c = $n->content->getContent();
+			if ( count( $c ) <= $start ) {
+				$start -= count( $c );
+			} else {
+				for ( $i = $start, $clen = count( $c ); $i < $clen && 0 < $len; $i++ ) {
+					$cs[] = $c[ $i ];
+					--$len;
+				}
+				$start = 0;
+			}
+		}
+	}
+	return $cs;
+}
+
+/**
+ * @param Types\AbstractType $type Type.
+ * @return array<int,mixed>
+ */
+function typeListToArray( Types\AbstractType $type ): array {
+	$cs = array();
+	for ( $n = $type->_start; null !== $n; $n = $n->right ) {
+		if ( $n->countable && ! $n->deleted ) {
+			array_push( $cs, ...$n->content->getContent() );
+		}
+	}
+	return $cs;
+}
+
+/**
+ * @param Types\AbstractType $type     Type.
+ * @param mixed              $snapshot Snapshot.
+ * @return array<int,mixed>
+ */
+function typeListToArraySnapshot( Types\AbstractType $type, $snapshot ): array {
+	unset( $snapshot );
+	return typeListToArray( $type );
+}
+
+/**
+ * @param Types\AbstractType $type Type.
+ * @param callable           $f    Callback.
+ * @return void
+ */
+function typeListForEach( Types\AbstractType $type, callable $f ): void {
+	$index = 0;
+	for ( $n = $type->_start; null !== $n; $n = $n->right ) {
+		if ( $n->countable && ! $n->deleted ) {
+			foreach ( $n->content->getContent() as $c ) {
+				$f( $c, $index++, $type );
+			}
+		}
+	}
+}
+
+/**
+ * @param Types\AbstractType $type Type.
+ * @param callable           $f    Callback.
+ * @return array<int,mixed>
+ */
+function typeListMap( Types\AbstractType $type, callable $f ): array {
+	$result = array();
+	typeListForEach(
+		$type,
+		static function ( $c, int $i, Types\AbstractType $parent ) use ( &$result, $f ): void {
+			$result[] = $f( $c, $i, $parent );
+		}
+	);
+	return $result;
+}
+
+/**
+ * @param Types\AbstractType $type  Type.
+ * @param int                $index Index.
+ * @return mixed
+ */
+function typeListGet( Types\AbstractType $type, int $index ) {
+	$marker = findMarker( $type, $index );
+	$n      = $type->_start;
+	if ( null !== $marker ) {
+		$n      = $marker->p;
+		$index -= $marker->index;
+	}
+	for ( ; null !== $n; $n = $n->right ) {
+		if ( ! $n->deleted && $n->countable ) {
+			if ( $index < $n->length ) {
+				return $n->content->getContent()[ $index ];
+			}
+			$index -= $n->length;
+		}
+	}
+	return Lib0\UndefinedValue::getInstance();
+}
+
+/**
+ * @param mixed $value Value.
+ * @return object
+ */
+function contentForValue( $value ): object {
+	if ( $value instanceof Lib0\Buffer ) {
+		return new Structs\ContentBinary( $value );
+	}
+	if ( $value instanceof Utils\Doc ) {
+		return new Structs\ContentDoc( $value );
+	}
+	if ( $value instanceof Types\AbstractType ) {
+		return new Structs\ContentType( $value );
+	}
+	return new Structs\ContentAny( array( $value ) );
+}
+
+/**
+ * @param mixed              $transaction   Transaction.
+ * @param Types\AbstractType $parent        Parent type.
+ * @param Structs\Item|null  $referenceItem Reference item.
+ * @param array<int,mixed>   $content       Content.
+ * @return void
+ */
+function typeListInsertGenericsAfter( $transaction, Types\AbstractType $parent, ?Structs\Item $referenceItem, array $content ): void {
+	$left            = $referenceItem;
+	$doc             = $transaction->doc;
+	$ownClientId     = $doc->clientID;
+	$store           = $doc->store;
+	$right           = null === $referenceItem ? $parent->_start : $referenceItem->right;
+	$jsonContent     = array();
+	$packJsonContent = static function () use ( &$jsonContent, &$left, $right, $parent, $transaction, $ownClientId, $store ): void {
+		if ( 0 < count( $jsonContent ) ) {
+			$left = new Structs\Item(
+				createID( $ownClientId, getState( $store, $ownClientId ) ),
+				$left,
+				null !== $left ? $left->lastId : null,
+				$right,
+				null !== $right ? $right->id : null,
+				$parent,
+				null,
+				new Structs\ContentAny( $jsonContent )
+			);
+			$left->integrate( $transaction, 0 );
+			$jsonContent = array();
+		}
+	};
+
+	foreach ( $content as $c ) {
+		if ( null === $c || is_int( $c ) || is_float( $c ) || is_bool( $c ) || is_string( $c ) || is_array( $c ) || $c instanceof \stdClass ) {
+			$jsonContent[] = $c;
+			continue;
+		}
+		$packJsonContent();
+		$left = new Structs\Item(
+			createID( $ownClientId, getState( $store, $ownClientId ) ),
+			$left,
+			null !== $left ? $left->lastId : null,
+			$right,
+			null !== $right ? $right->id : null,
+			$parent,
+			null,
+			contentForValue( $c )
+		);
+		$left->integrate( $transaction, 0 );
+	}
+	$packJsonContent();
+}
+
+/**
+ * @return \RuntimeException
+ */
+function lengthExceeded(): \RuntimeException {
+	return Lib0\Error::create( 'Length exceeded!' );
+}
+
+/**
+ * @param mixed              $transaction Transaction.
+ * @param Types\AbstractType $parent      Parent type.
+ * @param int                $index       Index.
+ * @param array<int,mixed>   $content     Content.
+ * @return void
+ */
+function typeListInsertGenerics( $transaction, Types\AbstractType $parent, int $index, array $content ): void {
+	if ( $index > $parent->_length ) {
+		throw lengthExceeded();
+	}
+	if ( 0 === $index ) {
+		if ( null !== $parent->_searchMarker ) {
+			updateMarkerChanges( $parent->_searchMarker, $index, count( $content ) );
+		}
+		typeListInsertGenericsAfter( $transaction, $parent, null, $content );
+		return;
+	}
+	$startIndex = $index;
+	$marker     = findMarker( $parent, $index );
+	$n          = $parent->_start;
+	if ( null !== $marker ) {
+		$n      = $marker->p;
+		$index -= $marker->index;
+		if ( 0 === $index ) {
+			$n      = $n->prev;
+			$index += ( null !== $n && $n->countable && ! $n->deleted ) ? $n->length : 0;
+		}
+	}
+	for ( ; null !== $n; $n = $n->right ) {
+		if ( ! $n->deleted && $n->countable ) {
+			if ( $index <= $n->length ) {
+				if ( $index < $n->length ) {
+					getItemCleanStart( $transaction, createID( $n->id->client, $n->id->clock + $index ) );
+				}
+				break;
+			}
+			$index -= $n->length;
+		}
+	}
+	if ( null !== $parent->_searchMarker ) {
+		updateMarkerChanges( $parent->_searchMarker, $startIndex, count( $content ) );
+	}
+	typeListInsertGenericsAfter( $transaction, $parent, $n, $content );
+}
+
+/**
+ * @param mixed              $transaction Transaction.
+ * @param Types\AbstractType $parent      Parent type.
+ * @param array<int,mixed>   $content     Content.
+ * @return void
+ */
+function typeListPushGenerics( $transaction, Types\AbstractType $parent, array $content ): void {
+	$n = $parent->_start;
+	while ( null !== $n && null !== $n->right ) {
+		$n = $n->right;
+	}
+	typeListInsertGenericsAfter( $transaction, $parent, $n, $content );
+}
+
+/**
+ * @param mixed              $transaction Transaction.
+ * @param Types\AbstractType $parent      Parent type.
+ * @param int                $index       Index.
+ * @param string             $text        Text.
+ * @return void
+ */
+function typeListInsertText( $transaction, Types\AbstractType $parent, int $index, string $text ): void {
+	if ( '' === $text ) {
+		return;
+	}
+	if ( 0 === $index ) {
+		$left  = null;
+		$right = $parent->_start;
+	} else {
+		$marker = findMarker( $parent, $index );
+		$n      = $parent->_start;
+		if ( null !== $marker ) {
+			$n      = $marker->p;
+			$index -= $marker->index;
+		}
+		for ( ; null !== $n; $n = $n->right ) {
+			if ( ! $n->deleted && $n->countable ) {
+				if ( $index <= $n->length ) {
+					if ( $index < $n->length ) {
+						getItemCleanStart( $transaction, createID( $n->id->client, $n->id->clock + $index ) );
+					}
+					break;
+				}
+				$index -= $n->length;
+			}
+		}
+		$left  = $n;
+		$right = null === $n ? null : $n->right;
+	}
+	$doc  = $transaction->doc;
+	$item = new Structs\Item(
+		createID( $doc->clientID, getState( $doc->store, $doc->clientID ) ),
+		$left,
+		null !== $left ? $left->lastId : null,
+		$right,
+		null !== $right ? $right->id : null,
+		$parent,
+		null,
+		new Structs\ContentString( $text )
+	);
+	$item->integrate( $transaction, 0 );
+}
+
+/**
+ * @param mixed              $transaction Transaction.
+ * @param Types\AbstractType $parent      Parent type.
+ * @param int                $index       Index.
+ * @param int                $length      Length.
+ * @return void
+ */
+function typeListDelete( $transaction, Types\AbstractType $parent, int $index, int $length ): void {
+	if ( 0 === $length ) {
+		return;
+	}
+	$startIndex  = $index;
+	$startLength = $length;
+	$marker      = findMarker( $parent, $index );
+	$n           = $parent->_start;
+	if ( null !== $marker ) {
+		$n      = $marker->p;
+		$index -= $marker->index;
+	}
+	for ( ; null !== $n && 0 < $index; $n = $n->right ) {
+		if ( ! $n->deleted && $n->countable ) {
+			if ( $index < $n->length ) {
+				getItemCleanStart( $transaction, createID( $n->id->client, $n->id->clock + $index ) );
+			}
+			$index -= $n->length;
+		}
+	}
+	while ( 0 < $length && null !== $n ) {
+		if ( ! $n->deleted ) {
+			if ( $length < $n->length ) {
+				getItemCleanStart( $transaction, createID( $n->id->client, $n->id->clock + $length ) );
+			}
+			$n->delete( $transaction );
+			$length -= $n->length;
+		}
+		$n = $n->right;
+	}
+	if ( 0 < $length ) {
+		throw lengthExceeded();
+	}
+	if ( null !== $parent->_searchMarker ) {
+		updateMarkerChanges( $parent->_searchMarker, $startIndex, -$startLength + $length );
+	}
+}
+
+/**
+ * @param mixed              $transaction Transaction.
+ * @param Types\AbstractType $parent      Parent type.
+ * @param string             $key         Key.
+ * @return void
+ */
+function typeMapDelete( $transaction, Types\AbstractType $parent, string $key ): void {
+	if ( array_key_exists( $key, $parent->_map ) ) {
+		$parent->_map[ $key ]->delete( $transaction );
+	}
+}
+
+/**
+ * @param mixed              $transaction Transaction.
+ * @param Types\AbstractType $parent      Parent type.
+ * @param string             $key         Key.
+ * @param mixed              $value       Value.
+ * @return void
+ */
+function typeMapSet( $transaction, Types\AbstractType $parent, string $key, $value ): void {
+	$left = $parent->_map[ $key ] ?? null;
+	$doc  = $transaction->doc;
+	( new Structs\Item(
+		createID( $doc->clientID, getState( $doc->store, $doc->clientID ) ),
+		$left,
+		null !== $left ? $left->lastId : null,
+		null,
+		null,
+		$parent,
+		$key,
+		contentForValue( $value )
+	) )->integrate( $transaction, 0 );
+}
+
+/**
+ * @param Types\AbstractType $parent Parent type.
+ * @param string             $key    Key.
+ * @return mixed
+ */
+function typeMapGet( Types\AbstractType $parent, string $key ) {
+	$val = $parent->_map[ $key ] ?? null;
+	return null !== $val && ! $val->deleted ? $val->content->getContent()[ $val->length - 1 ] : Lib0\UndefinedValue::getInstance();
+}
+
+/**
+ * @param Types\AbstractType $parent Parent type.
+ * @return array<string,mixed>
+ */
+function typeMapGetAll( Types\AbstractType $parent ): array {
+	$res = array();
+	foreach ( $parent->_map as $key => $value ) {
+		if ( ! $value->deleted ) {
+			$res[ (string) $key ] = $value->content->getContent()[ $value->length - 1 ];
+		}
+	}
+	return $res;
+}
+
+/**
+ * @param Types\AbstractType $parent Parent type.
+ * @param string             $key    Key.
+ * @return bool
+ */
+function typeMapHas( Types\AbstractType $parent, string $key ): bool {
+	$val = $parent->_map[ $key ] ?? null;
+	return null !== $val && ! $val->deleted;
+}
+
+/**
+ * @param Types\AbstractType $type Type.
+ * @return array<int,array{0:string,1:Structs\Item}>
+ */
+function createMapIterator( Types\AbstractType $type ): array {
+	$entries = array();
+	foreach ( $type->_map as $key => $value ) {
+		if ( ! $value->deleted ) {
+			$entries[] = array( (string) $key, $value );
+		}
+	}
+	return $entries;
+}
+
+/**
+ * @param Types\AbstractType $parent Parent type.
+ * @param Types\AbstractType $child  Child type.
+ * @return array<int,string|int>
+ */
+function getPathTo( Types\AbstractType $parent, Types\AbstractType $child ): array {
+	$path = array();
+	while ( null !== $child->_item && $child !== $parent ) {
+		if ( null !== $child->_item->parentSub ) {
+			array_unshift( $path, $child->_item->parentSub );
+		} else {
+			$i = 0;
+			for ( $c = $child->_item->parent->_start; null !== $c; $c = $c->right ) {
+				if ( $c === $child->_item ) {
+					break;
+				}
+				if ( ! $c->deleted && $c->countable ) {
+					$i += $c->length;
+				}
+			}
+			array_unshift( $path, $i );
+		}
+		$child = $child->_item->parent;
+	}
+	return $path;
 }
 
 /**
@@ -691,66 +1355,393 @@ function iterateDeletedStructs( $transaction, Utils\DeleteSet $ds, callable $f )
 }
 
 /**
- * @param mixed ...$args Arguments.
+ * @param object                            $encoder Encoder.
+ * @param array<int,Structs\AbstractStruct> $structs Structs.
+ * @param int                               $client  Client id.
+ * @param int                               $clock   Clock.
  * @return void
  */
-function applyUpdate( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function writeStructs( object $encoder, array $structs, int $client, int $clock ): void {
+	$clock           = Lib0\Math::max( $clock, $structs[0]->id->clock );
+	$startNewStructs = findIndexSS( $structs, $clock );
+	Lib0\Encoding::writeVarUint( $encoder->restEncoder, count( $structs ) - $startNewStructs );
+	$encoder->writeClient( $client );
+	Lib0\Encoding::writeVarUint( $encoder->restEncoder, $clock );
+	$firstStruct = $structs[ $startNewStructs ];
+	$firstStruct->write( $encoder, $clock - $firstStruct->id->clock );
+	for ( $i = $startNewStructs + 1, $len = count( $structs ); $i < $len; $i++ ) {
+		$structs[ $i ]->write( $encoder, 0 );
+	}
 }
 
 /**
- * @param mixed ...$args Arguments.
+ * @param object            $encoder Encoder.
+ * @param Utils\StructStore $store   Store.
+ * @param array<int,int>    $_sm     Target state vector.
  * @return void
  */
-function applyUpdateV2( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function writeClientsStructs( object $encoder, Utils\StructStore $store, array $_sm ): void {
+	$sm = array();
+	foreach ( $_sm as $client => $clock ) {
+		if ( getState( $store, (int) $client ) > $clock ) {
+			$sm[ (int) $client ] = $clock;
+		}
+	}
+	foreach ( getStateVector( $store ) as $client => $_clock ) {
+		if ( ! array_key_exists( $client, $_sm ) ) {
+			$sm[ (int) $client ] = 0;
+		}
+	}
+	Lib0\Encoding::writeVarUint( $encoder->restEncoder, count( $sm ) );
+	krsort( $sm, SORT_NUMERIC );
+	foreach ( $sm as $client => $clock ) {
+		writeStructs( $encoder, $store->clients[ $client ], (int) $client, $clock );
+	}
 }
 
 /**
- * @param mixed ...$args Arguments.
- * @return void
+ * @param object    $decoder Decoder.
+ * @param Utils\Doc $doc     Document.
+ * @return array<int,array{i:int,refs:array<int,Structs\AbstractStruct>}>
  */
-function readUpdate( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function readClientsStructRefs( object $decoder, Utils\Doc $doc ): array {
+	$clientRefs        = array();
+	$numOfStateUpdates = Lib0\Decoding::readVarUint( $decoder->restDecoder );
+	for ( $i = 0; $i < $numOfStateUpdates; $i++ ) {
+		$numberOfStructs       = Lib0\Decoding::readVarUint( $decoder->restDecoder );
+		$refs                  = array();
+		$client                = $decoder->readClient();
+		$clock                 = Lib0\Decoding::readVarUint( $decoder->restDecoder );
+		$clientRefs[ $client ] = array(
+			'i'    => 0,
+			'refs' => &$refs,
+		);
+		for ( $j = 0; $j < $numberOfStructs; $j++ ) {
+			$info = $decoder->readInfo();
+			switch ( Lib0\Binary::BITS5 & $info ) {
+				case 0:
+					$len    = $decoder->readLen();
+					$refs[] = new Structs\GC( createID( $client, $clock ), $len );
+					$clock += $len;
+					break;
+				case 10:
+					$len    = Lib0\Decoding::readVarUint( $decoder->restDecoder );
+					$refs[] = new Structs\Skip( createID( $client, $clock ), $len );
+					$clock += $len;
+					break;
+				default:
+					$cantCopyParentInfo = ( $info & ( Lib0\Binary::BIT7 | Lib0\Binary::BIT8 ) ) === 0;
+					$struct             = new Structs\Item(
+						createID( $client, $clock ),
+						null,
+						( $info & Lib0\Binary::BIT8 ) === Lib0\Binary::BIT8 ? $decoder->readLeftID() : null,
+						null,
+						( $info & Lib0\Binary::BIT7 ) === Lib0\Binary::BIT7 ? $decoder->readRightID() : null,
+						$cantCopyParentInfo ? ( $decoder->readParentInfo() ? $doc->get( $decoder->readString() ) : $decoder->readLeftID() ) : null,
+						$cantCopyParentInfo && ( $info & Lib0\Binary::BIT6 ) === Lib0\Binary::BIT6 ? $decoder->readString() : null,
+						readItemContent( $decoder, $info )
+					);
+					$refs[]             = $struct;
+					$clock             += $struct->length;
+			}
+		}
+		$clientRefs[ $client ]['refs'] = $refs;
+		unset( $refs );
+	}
+	return $clientRefs;
 }
 
 /**
- * @param mixed ...$args Arguments.
- * @return void
+ * @param Utils\Transaction                                              $transaction       Transaction.
+ * @param Utils\StructStore                                              $store             Store.
+ * @param array<int,array{i:int,refs:array<int,Structs\AbstractStruct>}> $clientsStructRefs Struct refs.
+ * @return array{update:Lib0\Buffer,missing:array<int,int>}|null
  */
-function readUpdateV2( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function integrateStructs( Utils\Transaction $transaction, Utils\StructStore $store, array &$clientsStructRefs ): ?array {
+	$stack                = array();
+	$clientsStructRefsIds = array_keys( $clientsStructRefs );
+	sort( $clientsStructRefsIds, SORT_NUMERIC );
+	if ( 0 === count( $clientsStructRefsIds ) ) {
+		return null;
+	}
+	$getNextStructTarget = static function () use ( &$clientsStructRefsIds, &$clientsStructRefs ): ?array {
+		if ( 0 === count( $clientsStructRefsIds ) ) {
+			return null;
+		}
+			$nextClient        = $clientsStructRefsIds[ count( $clientsStructRefsIds ) - 1 ];
+			$nextStructsTarget = $clientsStructRefs[ $nextClient ];
+			$nextRefsCount     = count( $nextStructsTarget['refs'] );
+		while ( $nextRefsCount === $nextStructsTarget['i'] ) {
+			array_pop( $clientsStructRefsIds );
+			if ( 0 < count( $clientsStructRefsIds ) ) {
+				$nextClient        = $clientsStructRefsIds[ count( $clientsStructRefsIds ) - 1 ];
+				$nextStructsTarget = $clientsStructRefs[ $nextClient ];
+				$nextRefsCount     = count( $nextStructsTarget['refs'] );
+			} else {
+				return null;
+			}
+		}
+		return array( 'client' => $nextClient );
+	};
+	$target              = $getNextStructTarget();
+	if ( null === $target ) {
+		return null;
+	}
+	$restStructs      = new Utils\StructStore();
+	$missingSV        = array();
+	$updateMissingSv  = static function ( int $client, int $clock ) use ( &$missingSV ): void {
+		if ( ! array_key_exists( $client, $missingSV ) || $missingSV[ $client ] > $clock ) {
+			$missingSV[ $client ] = $clock;
+		}
+	};
+	$nextFromTarget   = static function ( int $client ) use ( &$clientsStructRefs ) {
+		$index                             = $clientsStructRefs[ $client ]['i'];
+		$clientsStructRefs[ $client ]['i'] = $index + 1;
+		return $clientsStructRefs[ $client ]['refs'][ $index ];
+	};
+	$stackHead        = $nextFromTarget( $target['client'] );
+	$state            = array();
+	$addStackToRestSS = static function () use ( &$stack, &$clientsStructRefs, &$clientsStructRefsIds, $restStructs ): void {
+		foreach ( $stack as $item ) {
+			$client = $item->id->client;
+			if ( array_key_exists( $client, $clientsStructRefs ) ) {
+				--$clientsStructRefs[ $client ]['i'];
+				$restStructs->clients[ $client ] = array_slice( $clientsStructRefs[ $client ]['refs'], $clientsStructRefs[ $client ]['i'] );
+				unset( $clientsStructRefs[ $client ] );
+			} else {
+				$restStructs->clients[ $client ] = array( $item );
+			}
+			$clientsStructRefsIds = array_values(
+				array_filter(
+					$clientsStructRefsIds,
+					static fn ( int $c ): bool => $c !== $client
+				)
+			);
+		}
+		$stack = array();
+	};
+
+	while ( true ) {
+		if ( ! $stackHead instanceof Structs\Skip ) {
+			$client = $stackHead->id->client;
+			if ( ! array_key_exists( $client, $state ) ) {
+				$state[ $client ] = getState( $store, $client );
+			}
+			$localClock = $state[ $client ];
+			$offset     = $localClock - $stackHead->id->clock;
+			if ( $offset < 0 ) {
+				$stack[] = $stackHead;
+				$updateMissingSv( $stackHead->id->client, $stackHead->id->clock - 1 );
+				$addStackToRestSS();
+			} else {
+				$missing = $stackHead->getMissing( $transaction, $store );
+				if ( null !== $missing ) {
+					$stack[] = $stackHead;
+					if ( ! array_key_exists( $missing, $clientsStructRefs ) || count( $clientsStructRefs[ $missing ]['refs'] ) === $clientsStructRefs[ $missing ]['i'] ) {
+						$updateMissingSv( $missing, getState( $store, $missing ) );
+						$addStackToRestSS();
+					} else {
+						$stackHead = $nextFromTarget( $missing );
+						continue;
+					}
+				} elseif ( 0 === $offset || $offset < $stackHead->length ) {
+					$stackHead->integrate( $transaction, $offset );
+					$state[ $stackHead->id->client ] = $stackHead->id->clock + $stackHead->length;
+				}
+			}
+		}
+		if ( 0 < count( $stack ) ) {
+			$stackHead = array_pop( $stack );
+		} elseif ( null !== $target && $clientsStructRefs[ $target['client'] ]['i'] < count( $clientsStructRefs[ $target['client'] ]['refs'] ) ) {
+			$stackHead = $nextFromTarget( $target['client'] );
+		} else {
+			$target = $getNextStructTarget();
+			if ( null === $target ) {
+				break;
+			}
+			$stackHead = $nextFromTarget( $target['client'] );
+		}
+	}
+	if ( 0 < count( $restStructs->clients ) ) {
+		$encoder = new Utils\UpdateEncoderV1();
+		writeClientsStructs( $encoder, $restStructs, array() );
+		Lib0\Encoding::writeVarUint( $encoder->restEncoder, 0 );
+		return array(
+			'missing' => $missingSV,
+			'update'  => $encoder->toUint8Array(),
+		);
+	}
+	return null;
 }
 
 /**
- * @param mixed ...$args Arguments.
+ * @param object            $encoder     Encoder.
+ * @param Utils\Transaction $transaction Transaction.
  * @return void
  */
-function encodeStateAsUpdate( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function writeStructsFromTransaction( object $encoder, Utils\Transaction $transaction ): void {
+	writeClientsStructs( $encoder, $transaction->doc->store, $transaction->beforeState );
 }
 
 /**
- * @param mixed ...$args Arguments.
+ * @param Utils\Doc   $ydoc              Document.
+ * @param Lib0\Buffer $update            Update.
+ * @param mixed       $transactionOrigin Origin.
  * @return void
  */
-function encodeStateAsUpdateV2( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function applyUpdate( Utils\Doc $ydoc, Lib0\Buffer $update, $transactionOrigin = null ): void {
+	applyUpdateV2( $ydoc, $update, $transactionOrigin, Utils\UpdateDecoderV1::class );
 }
 
 /**
- * @param mixed ...$args Arguments.
+ * @param Utils\Doc   $ydoc              Document.
+ * @param Lib0\Buffer $update            Update.
+ * @param mixed       $transactionOrigin Origin.
+ * @param string      $YDecoder          Decoder class.
  * @return void
  */
-function encodeStateVector( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function applyUpdateV2( Utils\Doc $ydoc, Lib0\Buffer $update, $transactionOrigin = null, string $YDecoder = Utils\UpdateDecoderV1::class ): void {
+	$decoder = Lib0\Decoding::createDecoder( $update );
+	readUpdateV2( $decoder, $ydoc, $transactionOrigin, new $YDecoder( $decoder ) );
+}
+
+/**
+ * @param Lib0\Decoder $decoder           Decoder.
+ * @param Utils\Doc    $ydoc              Document.
+ * @param mixed        $transactionOrigin Origin.
+ * @return void
+ */
+function readUpdate( Lib0\Decoder $decoder, Utils\Doc $ydoc, $transactionOrigin = null ): void {
+	readUpdateV2( $decoder, $ydoc, $transactionOrigin, new Utils\UpdateDecoderV1( $decoder ) );
+}
+
+/**
+ * @param Lib0\Decoder $decoder           Decoder.
+ * @param Utils\Doc    $ydoc              Document.
+ * @param mixed        $transactionOrigin Origin.
+ * @param object       $structDecoder     Struct decoder.
+ * @return void
+ */
+function readUpdateV2( Lib0\Decoder $decoder, Utils\Doc $ydoc, $transactionOrigin = null, ?object $structDecoder = null ): void {
+	$structDecoder = $structDecoder ?? new Utils\UpdateDecoderV1( $decoder );
+	transact(
+		$ydoc,
+		function ( Utils\Transaction $transaction ) use ( $structDecoder ): void {
+			$transaction->local    = false;
+			$doc                   = $transaction->doc;
+			$store                 = $doc->store;
+			$ss                    = readClientsStructRefs( $structDecoder, $doc );
+			$restStructs           = integrateStructs( $transaction, $store, $ss );
+			$store->pendingStructs = $restStructs;
+			$dsRest                = readAndApplyDeleteSet( $structDecoder, $transaction, $store );
+			$store->pendingDs      = $dsRest;
+		},
+		$transactionOrigin,
+		false
+	);
+}
+
+/**
+ * @param object         $encoder           Encoder.
+ * @param Utils\Doc      $doc               Document.
+ * @param array<int,int> $targetStateVector Target state vector.
+ * @return void
+ */
+function writeStateAsUpdate( object $encoder, Utils\Doc $doc, array $targetStateVector = array() ): void {
+	writeClientsStructs( $encoder, $doc->store, $targetStateVector );
+	writeDeleteSet( $encoder, createDeleteSetFromStructStore( $doc->store ) );
+}
+
+/**
+ * @param Utils\Doc        $doc                      Document.
+ * @param Lib0\Buffer|null $encodedTargetStateVector Encoded target state.
+ * @param object|null      $encoder                  Encoder.
+ * @return Lib0\Buffer
+ */
+function encodeStateAsUpdateV2( Utils\Doc $doc, ?Lib0\Buffer $encodedTargetStateVector = null, ?object $encoder = null ): Lib0\Buffer {
+	$targetStateVector = null === $encodedTargetStateVector ? array() : decodeStateVector( $encodedTargetStateVector );
+	$encoder           = $encoder ?? new Utils\UpdateEncoderV1();
+	writeStateAsUpdate( $encoder, $doc, $targetStateVector );
+	return $encoder->toUint8Array();
+}
+
+/**
+ * @param Utils\Doc        $doc                      Document.
+ * @param Lib0\Buffer|null $encodedTargetStateVector Encoded target state.
+ * @return Lib0\Buffer
+ */
+function encodeStateAsUpdate( Utils\Doc $doc, ?Lib0\Buffer $encodedTargetStateVector = null ): Lib0\Buffer {
+	return encodeStateAsUpdateV2( $doc, $encodedTargetStateVector, new Utils\UpdateEncoderV1() );
+}
+
+/**
+ * @param object $decoder Decoder.
+ * @return array<int,int>
+ */
+function readStateVector( object $decoder ): array {
+	$ss       = array();
+	$ssLength = Lib0\Decoding::readVarUint( $decoder->restDecoder );
+	for ( $i = 0; $i < $ssLength; $i++ ) {
+		$client        = Lib0\Decoding::readVarUint( $decoder->restDecoder );
+		$clock         = Lib0\Decoding::readVarUint( $decoder->restDecoder );
+		$ss[ $client ] = $clock;
+	}
+	return $ss;
+}
+
+/**
+ * @param Lib0\Buffer $decodedState Encoded state vector.
+ * @return array<int,int>
+ */
+function decodeStateVector( Lib0\Buffer $decodedState ): array {
+	return readStateVector( new Utils\DSDecoderV1( Lib0\Decoding::createDecoder( $decodedState ) ) );
+}
+
+/**
+ * @param object         $encoder Encoder.
+ * @param array<int,int> $sv      State vector.
+ * @return object
+ */
+function writeStateVector( object $encoder, array $sv ): object {
+	Lib0\Encoding::writeVarUint( $encoder->restEncoder, count( $sv ) );
+	krsort( $sv, SORT_NUMERIC );
+	foreach ( $sv as $client => $clock ) {
+		Lib0\Encoding::writeVarUint( $encoder->restEncoder, (int) $client );
+		Lib0\Encoding::writeVarUint( $encoder->restEncoder, $clock );
+	}
+	return $encoder;
+}
+
+/**
+ * @param object    $encoder Encoder.
+ * @param Utils\Doc $doc     Document.
+ * @return object
+ */
+function writeDocumentStateVector( object $encoder, Utils\Doc $doc ): object {
+	return writeStateVector( $encoder, getStateVector( $doc->store ) );
+}
+
+/**
+ * @param Utils\Doc|array<int,int> $doc Doc or state vector.
+ * @param object|null              $encoder Encoder.
+ * @return Lib0\Buffer
+ */
+function encodeStateVectorV2( $doc, ?object $encoder = null ): Lib0\Buffer {
+	$encoder = $encoder ?? new Utils\DSEncoderV1();
+	if ( is_array( $doc ) ) {
+		writeStateVector( $encoder, $doc );
+	} else {
+		writeDocumentStateVector( $encoder, $doc );
+	}
+	return $encoder->toUint8Array();
+}
+
+/**
+ * @param Utils\Doc|array<int,int> $doc Doc or state vector.
+ * @return Lib0\Buffer
+ */
+function encodeStateVector( $doc ): Lib0\Buffer {
+	return encodeStateVectorV2( $doc, new Utils\DSEncoderV1() );
 }
 
 /**
@@ -785,15 +1776,6 @@ function decodeSnapshotV2( ...$args ) {
  * @return void
  */
 function encodeSnapshotV2( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
-}
-
-/**
- * @param mixed ...$args Arguments.
- * @return void
- */
-function decodeStateVector( ...$args ) {
 	unset( $args );
 	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
 }
@@ -895,21 +1877,294 @@ function equalSnapshots( ...$args ) {
 }
 
 /**
- * @param mixed ...$args Arguments.
- * @return void
+ * @param array<int,Structs\AbstractStruct> $structs Structs.
+ * @param int                               $pos     Position.
+ * @return int
  */
-function tryGc( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function tryToMergeWithLefts( array &$structs, int $pos ): int {
+	$right = $structs[ $pos ];
+	$left  = $structs[ $pos - 1 ];
+	$i     = $pos;
+	while ( $i > 0 ) {
+		if ( $left->deleted === $right->deleted && get_class( $left ) === get_class( $right ) ) {
+			if ( $left->mergeWith( $right ) ) {
+				if ( $right instanceof Structs\Item && null !== $right->parentSub && ( $right->parent->_map[ $right->parentSub ] ?? null ) === $right ) {
+					$right->parent->_map[ $right->parentSub ] = $left;
+				}
+				$right = $left;
+				--$i;
+				if ( $i > 0 ) {
+					$left = $structs[ $i - 1 ];
+				}
+				continue;
+			}
+		}
+		break;
+	}
+	$merged = $pos - $i;
+	if ( 0 < $merged ) {
+		array_splice( $structs, $pos + 1 - $merged, $merged );
+	}
+	return $merged;
 }
 
 /**
- * @param mixed ...$args Arguments.
+ * @param Utils\DeleteSet   $ds       Delete set.
+ * @param Utils\StructStore $store    Store.
+ * @param callable          $gcFilter GC filter.
  * @return void
  */
-function transact( ...$args ) {
-	unset( $args );
-	throw new NotImplemented( __FUNCTION__ . ' is not implemented in y-php milestone 1.' );
+function tryGcDeleteSet( Utils\DeleteSet $ds, Utils\StructStore $store, callable $gcFilter ): void {
+	foreach ( $ds->clients as $client => $deleteItems ) {
+		if ( ! array_key_exists( $client, $store->clients ) ) {
+			continue;
+		}
+		$structs =& $store->clients[ $client ];
+		for ( $di = count( $deleteItems ) - 1; $di >= 0; $di-- ) {
+			$deleteItem         = $deleteItems[ $di ];
+			$endDeleteItemClock = $deleteItem->clock + $deleteItem->len;
+			$structCount        = count( $structs );
+			for ( $si = findIndexSS( $structs, $deleteItem->clock ); $si < $structCount && $structs[ $si ]->id->clock < $endDeleteItemClock; $si++ ) {
+				$struct = $structs[ $si ];
+				if ( $deleteItem->clock + $deleteItem->len <= $struct->id->clock ) {
+					break;
+				}
+				if ( $struct instanceof Structs\Item && $struct->deleted && ! $struct->keep && $gcFilter( $struct ) ) {
+					$struct->gc( $store, false );
+				}
+			}
+		}
+		unset( $structs );
+	}
+}
+
+/**
+ * @param Utils\DeleteSet   $ds    Delete set.
+ * @param Utils\StructStore $store Store.
+ * @return void
+ */
+function tryMergeDeleteSet( Utils\DeleteSet $ds, Utils\StructStore $store ): void {
+	foreach ( $ds->clients as $client => $deleteItems ) {
+		if ( ! array_key_exists( $client, $store->clients ) ) {
+			continue;
+		}
+		$structs =& $store->clients[ $client ];
+		for ( $di = count( $deleteItems ) - 1; $di >= 0; $di-- ) {
+			$deleteItem            = $deleteItems[ $di ];
+			$mostRightIndexToCheck = Lib0\Math::min( count( $structs ) - 1, 1 + findIndexSS( $structs, $deleteItem->clock + $deleteItem->len - 1 ) );
+			for ( $si = $mostRightIndexToCheck; $si > 0 && $structs[ $si ]->id->clock >= $deleteItem->clock; ) {
+				$si -= 1 + tryToMergeWithLefts( $structs, $si );
+			}
+		}
+		unset( $structs );
+	}
+}
+
+/**
+ * @param Utils\DeleteSet   $ds       Delete set.
+ * @param Utils\StructStore $store    Store.
+ * @param callable          $gcFilter GC filter.
+ * @return void
+ */
+function tryGc( Utils\DeleteSet $ds, Utils\StructStore $store, callable $gcFilter ): void {
+	tryGcDeleteSet( $ds, $store, $gcFilter );
+	tryMergeDeleteSet( $ds, $store );
+}
+
+/**
+ * @param object            $encoder     Encoder.
+ * @param Utils\Transaction $transaction Transaction.
+ * @return bool
+ */
+function writeUpdateMessageFromTransaction( object $encoder, Utils\Transaction $transaction ): bool {
+	$changed = 0 < count( $transaction->deleteSet->clients );
+	foreach ( $transaction->afterState as $client => $clock ) {
+		if ( ( $transaction->beforeState[ $client ] ?? null ) !== $clock ) {
+			$changed = true;
+			break;
+		}
+	}
+	if ( ! $changed ) {
+		return false;
+	}
+	sortAndMergeDeleteSet( $transaction->deleteSet );
+	writeStructsFromTransaction( $encoder, $transaction );
+	writeDeleteSet( $encoder, $transaction->deleteSet );
+	return true;
+}
+
+/**
+ * @param \SplObjectStorage $storage Object storage.
+ * @return int
+ */
+function objectStorageCount( \SplObjectStorage $storage ): int {
+	$count = 0;
+	foreach ( $storage as $_object ) {
+		++$count;
+	}
+	return $count;
+}
+
+/**
+ * @param \SplObjectStorage $storage Object storage.
+ * @return array<int,Utils\Doc>
+ */
+function objectStorageToArray( \SplObjectStorage $storage ): array {
+	$array = array();
+	foreach ( $storage as $object ) {
+		$array[] = $object;
+	}
+	return $array;
+}
+
+/**
+ * @param array<int,Utils\Transaction> $transactionCleanups Transactions.
+ * @param int                          $i                   Index.
+ * @return void
+ */
+function cleanupTransactions( array &$transactionCleanups, int $i ): void {
+	if ( $i >= count( $transactionCleanups ) ) {
+		return;
+	}
+	$transaction  = $transactionCleanups[ $i ];
+	$doc          = $transaction->doc;
+	$store        = $doc->store;
+	$ds           = $transaction->deleteSet;
+	$mergeStructs = $transaction->_mergeStructs;
+	try {
+		sortAndMergeDeleteSet( $ds );
+		$transaction->afterState = getStateVector( $transaction->doc->store );
+		$doc->emit( 'beforeObserverCalls', array( $transaction, $doc ) );
+		foreach ( $transaction->changed as $itemtype ) {
+			$subs = $transaction->changed[ $itemtype ];
+			if ( null === $itemtype->_item || ! $itemtype->_item->deleted ) {
+				$itemtype->_callObserver( $transaction, $subs );
+			}
+		}
+		foreach ( $transaction->changedParentTypes as $type ) {
+			$events = $transaction->changedParentTypes[ $type ];
+			if ( 0 < count( $type->_dEH->l ) && ( null === $type->_item || ! $type->_item->deleted ) ) {
+				foreach ( $events as $event ) {
+					$event->currentTarget = $type;
+					$event->_path         = null;
+				}
+				usort(
+					$events,
+					static fn ( Utils\YEvent $a, Utils\YEvent $b ): int => count( $a->path ) <=> count( $b->path )
+				);
+				callEventHandlerListeners( $type->_dEH, $events, $transaction );
+			}
+		}
+		$doc->emit( 'afterTransaction', array( $transaction, $doc ) );
+	} finally {
+		if ( $doc->gc ) {
+			tryGcDeleteSet( $ds, $store, $doc->gcFilter );
+		}
+		tryMergeDeleteSet( $ds, $store );
+		foreach ( $transaction->afterState as $client => $clock ) {
+			$beforeClock = $transaction->beforeState[ $client ] ?? 0;
+			if ( $beforeClock !== $clock && array_key_exists( $client, $store->clients ) ) {
+				$structs        =& $store->clients[ $client ];
+				$firstChangePos = Lib0\Math::max( findIndexSS( $structs, $beforeClock ), 1 );
+				for ( $j = count( $structs ) - 1; $j >= $firstChangePos; ) {
+					$j -= 1 + tryToMergeWithLefts( $structs, $j );
+				}
+				unset( $structs );
+			}
+		}
+		for ( $j = count( $mergeStructs ) - 1; $j >= 0; $j-- ) {
+			$client = $mergeStructs[ $j ]->id->client;
+			$clock  = $mergeStructs[ $j ]->id->clock;
+			if ( ! array_key_exists( $client, $store->clients ) ) {
+				continue;
+			}
+			$structs           =& $store->clients[ $client ];
+			$replacedStructPos = findIndexSS( $structs, $clock );
+			if ( $replacedStructPos + 1 < count( $structs ) && tryToMergeWithLefts( $structs, $replacedStructPos + 1 ) > 1 ) {
+				unset( $structs );
+				continue;
+			}
+			if ( $replacedStructPos > 0 ) {
+				tryToMergeWithLefts( $structs, $replacedStructPos );
+			}
+			unset( $structs );
+		}
+		if ( ! $transaction->local && ( $transaction->afterState[ $doc->clientID ] ?? null ) !== ( $transaction->beforeState[ $doc->clientID ] ?? null ) ) {
+			$doc->clientID = generateNewClientId();
+		}
+		$doc->emit( 'afterTransactionCleanup', array( $transaction, $doc ) );
+		$encoder = new Utils\UpdateEncoderV1();
+		if ( writeUpdateMessageFromTransaction( $encoder, $transaction ) ) {
+			$doc->emit( 'update', array( $encoder->toUint8Array(), $transaction->origin, $doc, $transaction ) );
+		}
+		if ( 0 < objectStorageCount( $transaction->subdocsAdded ) || 0 < objectStorageCount( $transaction->subdocsRemoved ) || 0 < objectStorageCount( $transaction->subdocsLoaded ) ) {
+			foreach ( $transaction->subdocsAdded as $subdoc ) {
+				$subdoc->clientID = $doc->clientID;
+				if ( null === $subdoc->collectionid ) {
+					$subdoc->collectionid = $doc->collectionid;
+				}
+				$doc->subdocs->attach( $subdoc );
+			}
+			foreach ( $transaction->subdocsRemoved as $subdoc ) {
+				$doc->subdocs->detach( $subdoc );
+			}
+			$doc->emit(
+				'subdocs',
+				array(
+					array(
+						'loaded'  => objectStorageToArray( $transaction->subdocsLoaded ),
+						'added'   => objectStorageToArray( $transaction->subdocsAdded ),
+						'removed' => objectStorageToArray( $transaction->subdocsRemoved ),
+					),
+					$doc,
+					$transaction,
+				)
+			);
+			foreach ( $transaction->subdocsRemoved as $subdoc ) {
+				$subdoc->destroy();
+			}
+		}
+		if ( count( $transactionCleanups ) <= $i + 1 ) {
+			$doc->_transactionCleanups = array();
+			$doc->emit( 'afterAllTransactions', array( $doc, $transactionCleanups ) );
+		} else {
+			cleanupTransactions( $transactionCleanups, $i + 1 );
+		}
+	}
+}
+
+/**
+ * @param Utils\Doc $doc    Document.
+ * @param callable  $f      Callback.
+ * @param mixed     $origin Origin.
+ * @param bool      $local  Whether transaction is local.
+ * @return mixed
+ */
+function transact( Utils\Doc $doc, callable $f, $origin = null, bool $local = true ) {
+	$transactionCleanups =& $doc->_transactionCleanups;
+	$initialCall         = false;
+	$result              = null;
+	if ( null === $doc->_transaction ) {
+		$initialCall           = true;
+		$doc->_transaction     = new Utils\Transaction( $doc, $origin, $local );
+		$transactionCleanups[] = $doc->_transaction;
+		if ( 1 === count( $transactionCleanups ) ) {
+			$doc->emit( 'beforeAllTransactions', array( $doc ) );
+		}
+		$doc->emit( 'beforeTransaction', array( $doc->_transaction, $doc ) );
+	}
+	try {
+		$result = $f( $doc->_transaction );
+	} finally {
+		if ( $initialCall ) {
+			$finishCleanup     = $doc->_transaction === $transactionCleanups[0];
+			$doc->_transaction = null;
+			if ( $finishCleanup ) {
+				cleanupTransactions( $transactionCleanups, 0 );
+			}
+		}
+	}
+	return $result;
 }
 
 /**
@@ -1147,6 +2402,68 @@ function readDeleteSet( object $decoder ): Utils\DeleteSet {
 		}
 	}
 	return $ds;
+}
+
+/**
+ * @param object            $decoder     Decoder.
+ * @param Utils\Transaction $transaction Transaction.
+ * @param Utils\StructStore $store       Store.
+ * @return Lib0\Buffer|null
+ */
+function readAndApplyDeleteSet( object $decoder, Utils\Transaction $transaction, Utils\StructStore $store ): ?Lib0\Buffer {
+	$unappliedDS = new Utils\DeleteSet();
+	$numClients  = Lib0\Decoding::readVarUint( $decoder->restDecoder );
+	for ( $i = 0; $i < $numClients; $i++ ) {
+		$decoder->resetDsCurVal();
+		$client          = Lib0\Decoding::readVarUint( $decoder->restDecoder );
+		$numberOfDeletes = Lib0\Decoding::readVarUint( $decoder->restDecoder );
+		$structs         = $store->clients[ $client ] ?? array();
+		$state           = getState( $store, $client );
+		for ( $j = 0; $j < $numberOfDeletes; $j++ ) {
+			$clock    = $decoder->readDsClock();
+			$clockEnd = $clock + $decoder->readDsLen();
+			if ( $clock < $state ) {
+				if ( $state < $clockEnd ) {
+					addToDeleteSet( $unappliedDS, $client, $state, $clockEnd - $state );
+				}
+				if ( ! array_key_exists( $client, $store->clients ) ) {
+					continue;
+				}
+				$structs =& $store->clients[ $client ];
+				$index   = findIndexSS( $structs, $clock );
+				$struct  = $structs[ $index ];
+				if ( ! $struct->deleted && $struct->id->clock < $clock && $struct instanceof Structs\Item ) {
+					array_splice( $structs, $index + 1, 0, array( splitItem( $transaction, $struct, $clock - $struct->id->clock ) ) );
+					++$index;
+				}
+				$structCount = count( $structs );
+				while ( $index < $structCount ) {
+					$struct = $structs[ $index++ ];
+					if ( $struct->id->clock < $clockEnd ) {
+						if ( ! $struct->deleted && $struct instanceof Structs\Item ) {
+							if ( $clockEnd < $struct->id->clock + $struct->length ) {
+								array_splice( $structs, $index, 0, array( splitItem( $transaction, $struct, $clockEnd - $struct->id->clock ) ) );
+								++$structCount;
+							}
+							$struct->delete( $transaction );
+						}
+					} else {
+						break;
+					}
+				}
+				unset( $structs );
+			} else {
+				addToDeleteSet( $unappliedDS, $client, $clock, $clockEnd - $clock );
+			}
+		}
+	}
+	if ( 0 < count( $unappliedDS->clients ) ) {
+		$ds = new Utils\UpdateEncoderV1();
+		Lib0\Encoding::writeVarUint( $ds->restEncoder, 0 );
+		writeDeleteSet( $ds, $unappliedDS );
+		return $ds->toUint8Array();
+	}
+	return null;
 }
 
 /**

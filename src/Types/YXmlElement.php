@@ -52,21 +52,22 @@ class YXmlElement extends YXmlFragment {
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return YXmlElement
 	 */
-	public function clone( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function clone(): YXmlElement {
+		$element = new YXmlElement( $this->nodeName );
+		$element->insert(
+			0,
+			array_map(
+				static fn ( $el ) => $el instanceof AbstractType ? $el->clone() : $el,
+				$this->toArray()
+			)
+		);
+		return $element;
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function toString( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function toString(): string {
+		return '<' . $this->nodeName . '>' . parent::toString() . '</' . $this->nodeName . '>';
 	}
 
 	/**

@@ -1,6 +1,6 @@
 <?php
 /**
- * Translated doc.tests.js tests.
+ * Ported doc.tests.js tests.
  *
  * @package Yjs
  */
@@ -9,108 +9,258 @@ declare(strict_types=1);
 
 namespace Yjs\Tests\Unit;
 
-use Yjs\Tests\Support\TranslatedTestCase;
+use PHPUnit\Framework\TestCase;
+use Yjs\Lib0\Buffer;
+use Yjs\Types\YMap;
+use Yjs\Types\YXmlText;
+use Yjs\Utils\Doc;
 
 /**
- * Translated test slots from yjs/tests/doc.tests.js.
+ * Tests ported from yjs/tests/doc.tests.js for the M2.4 runtime surface.
  */
-final class DocTest extends TranslatedTestCase {
+final class DocTest extends TestCase {
 	/**
-	 * Source: yjs/tests/doc.tests.js::testAfterTransactionRecursion
+	 * Source: yjs/tests/doc.tests.js::testAfterTransactionRecursion.
 	 *
 	 * @return void
 	 */
 	public function testAfterTransactionRecursion(): void {
-		$this->runTranslatedTest( 'doc.tests.js', 'testAfterTransactionRecursion' );
+		$ydoc  = new Doc();
+		$yxml  = $ydoc->getXmlFragment( '' );
+		$calls = 0;
+
+		$ydoc->on(
+			'afterTransaction',
+			static function ( $tr ) use ( $yxml, &$calls ): void {
+				if ( 'test' === $tr->origin ) {
+					$yxml->toJSON();
+					++$calls;
+				}
+			}
+		);
+		$ydoc->transact(
+			static function () use ( $yxml ): void {
+				for ( $i = 0; $i < 256; $i++ ) {
+					$yxml->push( array( new YXmlText( 'a' ) ) );
+				}
+			},
+			'test'
+		);
+
+		self::assertSame( 1, $calls );
 	}
 
 	/**
-	 * Source: yjs/tests/doc.tests.js::testOriginInTransaction
+	 * Source: yjs/tests/doc.tests.js::testOriginInTransaction.
 	 *
 	 * @return void
 	 */
 	public function testOriginInTransaction(): void {
-		$this->runTranslatedTest( 'doc.tests.js', 'testOriginInTransaction' );
+		self::markTestSkipped( 'Requires YText snapshot/toDelta cleanup transactions from later milestones.' );
 	}
 
 	/**
-	 * Source: yjs/tests/doc.tests.js::testClientIdDuplicateChange
+	 * Source: yjs/tests/doc.tests.js::testClientIdDuplicateChange.
 	 *
 	 * @return void
 	 */
 	public function testClientIdDuplicateChange(): void {
-		$this->runTranslatedTest( 'doc.tests.js', 'testClientIdDuplicateChange' );
+		$doc1           = new Doc();
+		$doc1->clientID = 0;
+		$doc2           = new Doc();
+		$doc2->clientID = 0;
+
+		self::assertSame( $doc1->clientID, $doc2->clientID );
+		$doc1->getArray( 'a' )->insert( 0, array( 1, 2 ) );
+		\Yjs\applyUpdate( $doc2, \Yjs\encodeStateAsUpdate( $doc1 ) );
+
+		self::assertNotSame( $doc1->clientID, $doc2->clientID );
 	}
 
 	/**
-	 * Source: yjs/tests/doc.tests.js::testGetTypeEmptyId
+	 * Source: yjs/tests/doc.tests.js::testGetTypeEmptyId.
 	 *
 	 * @return void
 	 */
 	public function testGetTypeEmptyId(): void {
-		$this->runTranslatedTest( 'doc.tests.js', 'testGetTypeEmptyId' );
+		$doc1 = new Doc();
+		$doc1->getText( '' )->insert( 0, 'h' );
+		$doc1->getText()->insert( 1, 'i' );
+
+		$doc2 = new Doc();
+		\Yjs\applyUpdate( $doc2, \Yjs\encodeStateAsUpdate( $doc1 ) );
+
+		self::assertSame( 'hi', $doc2->getText()->toString() );
+		self::assertSame( 'hi', $doc2->getText( '' )->toString() );
 	}
 
 	/**
-	 * Source: yjs/tests/doc.tests.js::testToJSON
+	 * Source: yjs/tests/doc.tests.js::testToJSON.
 	 *
 	 * @return void
 	 */
 	public function testToJSON(): void {
-		$this->runTranslatedTest( 'doc.tests.js', 'testToJSON' );
+		$doc = new Doc();
+		self::assertEquals( new \stdClass(), $doc->toJSON(), 'doc.toJSON yields empty object' );
+
+		$arr = $doc->getArray( 'array' );
+		$arr->push( array( 'test1' ) );
+
+		$map = $doc->getMap( 'map' );
+		$map->set( 'k1', 'v1' );
+		$map2 = new YMap();
+		$map->set( 'k2', $map2 );
+		$map2->set( 'm2k1', 'm2v1' );
+
+		$expected = (object) array(
+			'array' => array( 'test1' ),
+			'map'   => (object) array(
+				'k1' => 'v1',
+				'k2' => (object) array(
+					'm2k1' => 'm2v1',
+				),
+			),
+		);
+		self::assertEquals( $expected, $doc->toJSON() );
 	}
 
 	/**
-	 * Source: yjs/tests/doc.tests.js::testSubdoc
+	 * Source: yjs/tests/doc.tests.js::testSubdoc.
 	 *
 	 * @return void
 	 */
 	public function testSubdoc(): void {
-		$this->runTranslatedTest( 'doc.tests.js', 'testSubdoc' );
+		self::markTestSkipped( 'Full subdocument lifecycle assertions depend on later map/delete and provider semantics.' );
 	}
 
 	/**
-	 * Source: yjs/tests/doc.tests.js::testSubdocLoadEdgeCases
+	 * Source: yjs/tests/doc.tests.js::testSubdocLoadEdgeCases.
 	 *
 	 * @return void
 	 */
 	public function testSubdocLoadEdgeCases(): void {
-		$this->runTranslatedTest( 'doc.tests.js', 'testSubdocLoadEdgeCases' );
+		self::markTestSkipped( 'Full subdocument load/destroy edge cases are completed with later type milestones.' );
 	}
 
 	/**
-	 * Source: yjs/tests/doc.tests.js::testSubdocLoadEdgeCasesAutoload
+	 * Source: yjs/tests/doc.tests.js::testSubdocLoadEdgeCasesAutoload.
 	 *
 	 * @return void
 	 */
 	public function testSubdocLoadEdgeCasesAutoload(): void {
-		$this->runTranslatedTest( 'doc.tests.js', 'testSubdocLoadEdgeCasesAutoload' );
+		self::markTestSkipped( 'Full subdocument autoload edge cases are completed with later type milestones.' );
 	}
 
 	/**
-	 * Source: yjs/tests/doc.tests.js::testSubdocsUndo
+	 * Source: yjs/tests/doc.tests.js::testSubdocsUndo.
 	 *
 	 * @return void
 	 */
 	public function testSubdocsUndo(): void {
-		$this->runTranslatedTest( 'doc.tests.js', 'testSubdocsUndo' );
+		self::markTestSkipped( 'Requires UndoManager and full XML behavior from later milestones.' );
 	}
 
 	/**
-	 * Source: yjs/tests/doc.tests.js::testLoadDocsEvent
+	 * Source: yjs/tests/doc.tests.js::testLoadDocsEvent.
 	 *
 	 * @return void
 	 */
 	public function testLoadDocsEvent(): void {
-		$this->runTranslatedTest( 'doc.tests.js', 'testLoadDocsEvent' );
+		$ydoc = new Doc();
+		self::assertFalse( $ydoc->isLoaded );
+		$loadedEvent = false;
+		$ydoc->on(
+			'load',
+			static function () use ( &$loadedEvent ): void {
+				$loadedEvent = true;
+			}
+		);
+		$ydoc->emit( 'load', array( $ydoc ) );
+
+		self::assertTrue( $loadedEvent );
+		self::assertTrue( $ydoc->isLoaded );
 	}
 
 	/**
-	 * Source: yjs/tests/doc.tests.js::testSyncDocsEvent
+	 * Source: yjs/tests/doc.tests.js::testSyncDocsEvent.
 	 *
 	 * @return void
 	 */
 	public function testSyncDocsEvent(): void {
-		$this->runTranslatedTest( 'doc.tests.js', 'testSyncDocsEvent' );
+		$ydoc = new Doc();
+		self::assertFalse( $ydoc->isLoaded );
+		self::assertFalse( $ydoc->isSynced );
+
+		$loadedEvent = false;
+		$ydoc->once(
+			'load',
+			static function () use ( &$loadedEvent ): void {
+				$loadedEvent = true;
+			}
+		);
+		$syncedEvent = false;
+		$ydoc->once(
+			'sync',
+			static function ( $isSynced ) use ( &$syncedEvent ): void {
+				$syncedEvent = true;
+				self::assertTrue( $isSynced );
+			}
+		);
+		$ydoc->emit( 'sync', array( true, $ydoc ) );
+
+		self::assertTrue( $loadedEvent );
+		self::assertTrue( $syncedEvent );
+		self::assertTrue( $ydoc->isLoaded );
+		self::assertTrue( $ydoc->isSynced );
+
+		$loadedEvent2 = false;
+		$ydoc->on(
+			'load',
+			static function () use ( &$loadedEvent2 ): void {
+				$loadedEvent2 = true;
+			}
+		);
+		$syncedEvent2 = false;
+		$ydoc->on(
+			'sync',
+			static function ( $isSynced ) use ( &$syncedEvent2 ): void {
+				$syncedEvent2 = true;
+				self::assertFalse( $isSynced );
+			}
+		);
+		$ydoc->emit( 'sync', array( false, $ydoc ) );
+
+		self::assertFalse( $loadedEvent2 );
+		self::assertTrue( $syncedEvent2 );
+		self::assertTrue( $ydoc->isLoaded );
+		self::assertFalse( $ydoc->isSynced );
+	}
+
+	/**
+	 * @return void
+	 */
+	public function testJsFixtureUpdatesRoundTripThroughDoc(): void {
+		$fixture = $this->fixture( 'yjs-scenarios.json' );
+		foreach ( $fixture['scenarios'] as $scenario ) {
+			$doc = new Doc();
+			\Yjs\applyUpdate( $doc, Buffer::fromHexString( $scenario['updateHex'] ) );
+
+			self::assertSame( $scenario['stateVectorHex'], \Yjs\encodeStateVector( $doc )->toHexString(), $scenario['name'] . ' state vector' );
+			self::assertSame( $scenario['updateHex'], \Yjs\encodeStateAsUpdate( $doc )->toHexString(), $scenario['name'] . ' update' );
+		}
+	}
+
+	/**
+	 * @param string $name Fixture file name.
+	 * @return array<string,mixed>
+	 */
+	private function fixture( string $name ): array {
+		$path = dirname( __DIR__ ) . '/fixtures/' . $name;
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents
+		$data = json_decode( file_get_contents( $path ), true );
+		if ( ! is_array( $data ) ) {
+			self::fail( 'Unable to read fixture ' . $name );
+		}
+		return $data;
 	}
 }

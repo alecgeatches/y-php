@@ -40,6 +40,9 @@ class YMap extends AbstractType implements \IteratorAggregate {
 	 */
 	public function _integrate( object $y, ?\Yjs\Structs\Item $item ): void {
 		parent::_integrate( $y, $item );
+		foreach ( $this->_prelimContent ?? array() as $key => $value ) {
+			$this->set( (string) $key, $value );
+		}
 		$this->_prelimContent = null;
 	}
 
@@ -50,112 +53,104 @@ class YMap extends AbstractType implements \IteratorAggregate {
 		return new YMap();
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function clone( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function clone(): YMap {
+		$map = new YMap();
+		$this->forEach(
+			static function ( $value, string $key ) use ( $map ): void {
+				$map->set( $key, $value instanceof AbstractType ? $value->clone() : $value );
+			}
+		);
+		return $map;
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function _callObserver( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function _callObserver( $transaction, array $parentSubs ): void {
+		parent::_callObserver( $transaction, $parentSubs );
+		\Yjs\callTypeObservers( $this, $transaction, new \Yjs\Types\YMapEvent( $this, $transaction, $parentSubs ) );
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function toJSON( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function toJSON(): \stdClass {
+		$map = new \stdClass();
+		foreach ( $this->_map as $key => $item ) {
+			if ( ! $item->deleted ) {
+				$content     = $item->content->getContent();
+				$value       = $content[ $item->length - 1 ];
+				$map->{$key} = $value instanceof AbstractType ? $value->toJSON() : $value;
+			}
+		}
+		return $map;
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function keys( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function keys(): array {
+		return array_keys( \Yjs\typeMapGetAll( $this ) );
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function values( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function values(): array {
+		return array_values( \Yjs\typeMapGetAll( $this ) );
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function entries( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function entries(): array {
+		return \Yjs\createMapIterator( $this );
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function forEach( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function forEach( callable $f ): void {
+		foreach ( $this->_map as $key => $item ) {
+			if ( ! $item->deleted ) {
+				$content = $item->content->getContent();
+				$f( $content[ $item->length - 1 ], (string) $key, $this );
+			}
+		}
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function delete( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function delete( string $key ): void {
+		if ( null !== $this->doc ) {
+			\Yjs\transact(
+				$this->doc,
+				function ( $transaction ) use ( $key ): void {
+					\Yjs\typeMapDelete( $transaction, $this, $key );
+				}
+			);
+		} else {
+			unset( $this->_prelimContent[ $key ] );
+		}
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function set( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function set( string $key, $value ) {
+		if ( null !== $this->doc ) {
+			\Yjs\transact(
+				$this->doc,
+				function ( $transaction ) use ( $key, $value ): void {
+					\Yjs\typeMapSet( $transaction, $this, $key, $value );
+				}
+			);
+		} else {
+			$this->_prelimContent[ $key ] = $value;
+		}
+		return $value;
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function get( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function get( string $key ) {
+		return \Yjs\typeMapGet( $this, $key );
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function has( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function has( string $key ): bool {
+		return \Yjs\typeMapHas( $this, $key );
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function clear( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function clear(): void {
+		if ( null !== $this->doc ) {
+			\Yjs\transact(
+				$this->doc,
+				function ( $transaction ): void {
+					$this->forEach(
+						static function ( $_value, string $key, YMap $map ) use ( $transaction ): void {
+							\Yjs\typeMapDelete( $transaction, $map, $key );
+						}
+					);
+				}
+			);
+		} else {
+			$this->_prelimContent = array();
+		}
 	}
 
 	/**
@@ -170,7 +165,6 @@ class YMap extends AbstractType implements \IteratorAggregate {
 	 * @return \Traversable
 	 */
 	public function getIterator(): \Traversable {
-		$this->notImplemented( __METHOD__ );
-		return new \EmptyIterator();
+		return new \ArrayIterator( $this->entries() );
 	}
 }

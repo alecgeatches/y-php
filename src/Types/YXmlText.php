@@ -23,12 +23,10 @@ class YXmlText extends YText {
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return YXmlText
 	 */
-	public function clone( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function clone(): YXmlText {
+		return new YXmlText( $this->toString() );
 	}
 
 	/**
@@ -40,22 +38,8 @@ class YXmlText extends YText {
 		$this->notImplemented( __METHOD__ );
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function toString( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
-	}
-
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function toJSON( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function toJSON(): string {
+		return $this->toString();
 	}
 
 	/**

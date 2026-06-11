@@ -23,15 +23,13 @@ class YArray extends AbstractType implements \IteratorAggregate {
 	public function __construct() {
 		parent::__construct();
 		$this->_prelimContent = array();
+		$this->_searchMarker  = array();
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public static function from( ...$args ) {
-		unset( $args );
-		static::notImplementedStatic( __METHOD__ );
+	public static function from( array $items ): YArray {
+		$array = new YArray();
+		$array->push( $items );
+		return $array;
 	}
 
 	/**
@@ -41,6 +39,7 @@ class YArray extends AbstractType implements \IteratorAggregate {
 	 */
 	public function _integrate( object $y, ?\Yjs\Structs\Item $item ): void {
 		parent::_integrate( $y, $item );
+		$this->insert( 0, $this->_prelimContent ?? array() );
 		$this->_prelimContent = null;
 	}
 
@@ -51,112 +50,90 @@ class YArray extends AbstractType implements \IteratorAggregate {
 		return new YArray();
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function clone( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function clone(): YArray {
+		$arr = new YArray();
+		$arr->insert(
+			0,
+			array_map(
+				static fn ( $el ) => $el instanceof AbstractType ? $el->clone() : $el,
+				$this->toArray()
+			)
+		);
+		return $arr;
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function _callObserver( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function _callObserver( $transaction, array $parentSubs ): void {
+		parent::_callObserver( $transaction, $parentSubs );
+		\Yjs\callTypeObservers( $this, $transaction, new \Yjs\Types\YArrayEvent( $this, $transaction ) );
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function insert( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function insert( int $index, array $content ): void {
+		if ( null !== $this->doc ) {
+			\Yjs\transact(
+				$this->doc,
+				function ( $transaction ) use ( $index, $content ): void {
+					\Yjs\typeListInsertGenerics( $transaction, $this, $index, $content );
+				}
+			);
+		} else {
+			array_splice( $this->_prelimContent, $index, 0, $content );
+		}
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function push( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function push( array $content ): void {
+		if ( null !== $this->doc ) {
+			\Yjs\transact(
+				$this->doc,
+				function ( $transaction ) use ( $content ): void {
+					\Yjs\typeListPushGenerics( $transaction, $this, $content );
+				}
+			);
+		} else {
+			array_push( $this->_prelimContent, ...$content );
+		}
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function unshift( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function unshift( array $content ): void {
+		$this->insert( 0, $content );
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function delete( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function delete( int $index, int $length = 1 ): void {
+		if ( null !== $this->doc ) {
+			\Yjs\transact(
+				$this->doc,
+				function ( $transaction ) use ( $index, $length ): void {
+					\Yjs\typeListDelete( $transaction, $this, $index, $length );
+				}
+			);
+		} else {
+			array_splice( $this->_prelimContent, $index, $length );
+		}
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function get( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function get( int $index ) {
+		return \Yjs\typeListGet( $this, $index );
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function toArray( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function toArray(): array {
+		return \Yjs\typeListToArray( $this );
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function slice( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function slice( int $start = 0, ?int $end = null ): array {
+		return \Yjs\typeListSlice( $this, $start, $end ?? $this->_length );
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function toJSON( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function toJSON(): array {
+		return $this->map(
+			static fn ( $c ) => $c instanceof AbstractType ? $c->toJSON() : $c
+		);
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function map( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function map( callable $f ): array {
+		return \Yjs\typeListMap( $this, $f );
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function forEach( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function forEach( callable $f ): void {
+		\Yjs\typeListForEach( $this, $f );
 	}
 
 	/**
@@ -171,7 +148,6 @@ class YArray extends AbstractType implements \IteratorAggregate {
 	 * @return \Traversable
 	 */
 	public function getIterator(): \Traversable {
-		$this->notImplemented( __METHOD__ );
-		return new \EmptyIterator();
+		return new \ArrayIterator( $this->toArray() );
 	}
 }

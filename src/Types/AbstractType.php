@@ -10,11 +10,9 @@ declare(strict_types=1);
 namespace Yjs\Types;
 
 /**
- * AbstractType API stub for the Yjs port red baseline.
+ * Base class for shared Yjs types.
  */
 class AbstractType {
-	use \Yjs\NotImplementedTrait;
-
 	/**
 	 * @var \Yjs\Structs\Item|null
 	 */
@@ -41,12 +39,12 @@ class AbstractType {
 	public int $_length = 0;
 
 	/**
-	 * @var mixed
+	 * @var \Yjs\Utils\EventHandler
 	 */
 	public $_eH;
 
 	/**
-	 * @var mixed
+	 * @var \Yjs\Utils\EventHandler
 	 */
 	public $_dEH;
 
@@ -55,7 +53,15 @@ class AbstractType {
 	 */
 	public ?array $_searchMarker = null;
 
-	public function __construct() {}
+	/**
+	 * @var bool
+	 */
+	public bool $_hasFormatting = false;
+
+	public function __construct() {
+		$this->_eH  = \Yjs\createEventHandler();
+		$this->_dEH = \Yjs\createEventHandler();
+	}
 
 	/**
 	 * @param string $name Property name.
@@ -89,17 +95,12 @@ class AbstractType {
 	 * @return AbstractType
 	 */
 	public function _copy(): AbstractType {
-		$this->notImplemented( __METHOD__ );
+		\Yjs\Lib0\Error::methodUnimplemented();
 		return new AbstractType();
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function clone( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function clone() {
+		\Yjs\Lib0\Error::methodUnimplemented();
 	}
 
 	/**
@@ -110,57 +111,49 @@ class AbstractType {
 		unset( $encoder );
 	}
 
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function _callObserver( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function _callObserver( $transaction, array $_parentSubs ): void {
+		unset( $_parentSubs );
+		if ( ! $transaction->local && null !== $this->_searchMarker ) {
+			$this->_searchMarker = array();
+		}
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param callable $f Observer.
 	 * @return void
 	 */
-	public function observe( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function observe( callable $f ): void {
+		\Yjs\addEventHandlerListener( $this->_eH, $f );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param callable $f Observer.
 	 * @return void
 	 */
-	public function observeDeep( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function observeDeep( callable $f ): void {
+		\Yjs\addEventHandlerListener( $this->_dEH, $f );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param callable $f Observer.
 	 * @return void
 	 */
-	public function unobserve( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function unobserve( callable $f ): void {
+		\Yjs\removeEventHandlerListener( $this->_eH, $f );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param callable $f Observer.
 	 * @return void
 	 */
-	public function unobserveDeep( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function unobserveDeep( callable $f ): void {
+		\Yjs\removeEventHandlerListener( $this->_dEH, $f );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
-	public function toJSON( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function toJSON() {
+		return null;
 	}
 }

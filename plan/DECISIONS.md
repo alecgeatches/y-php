@@ -219,3 +219,38 @@ Use the next free `DEC-NNNN` number. Never edit a prior entry's decision; if it 
 - **Decision:** `phpcs.xml.dist` now excludes `PSR2.Classes.PropertyDeclaration.Underscore` in addition to the existing method-underscore exclusion.
 - **Why:** Yjs's core type/doc state is carried in underscore-prefixed properties such as `_item`, `_map`, `_start`, `_length`, `_searchMarker`, `_prelimContent`, and `_transactionCleanups`. Renaming them would obscure source parity and make later ports harder to compare.
 - **Affects:** All type/doc ports, transaction/runtime work, and WPCS lint behavior.
+
+### DEC-0028 — Transaction object-keyed maps use SplObjectStorage
+- **Milestone:** M2.4
+- **Status:** accepted
+- **Decision:** `Yjs\Utils\Transaction::$changed`, `$changedParentTypes`, `$subdocsAdded`, `$subdocsRemoved`, and `$subdocsLoaded` use `SplObjectStorage` where JS uses `Map` or `Set` keyed by type/doc objects. The attached payloads remain PHP arrays for the per-type changed keys and parent-subscriptions lists.
+- **Why:** PHP arrays cannot key by object identity, while the JS runtime relies on object identity for observer dispatch, changed-type cleanup, and subdoc bookkeeping.
+- **Affects:** Event handling, observer/deep-observer ports, transaction cleanup, subdoc lifecycle work, and later type milestones.
+
+### DEC-0029 — M2.4 update V2 entry points remain V1-backed
+- **Milestone:** M2.4
+- **Status:** accepted
+- **Decision:** `applyUpdateV2()`, `readUpdateV2()`, `encodeStateAsUpdateV2()`, and `encodeStateVectorV2()` are implemented for the M2.4 public call surface but continue to use the V1 encoder/decoder classes by default. Pending struct/delete-set writes also use V1 buffers in this milestone.
+- **Why:** DEC-0003 and DEC-0018 defer real V2 codecs to M7, while M2.4 needs the public update helpers to exist for integration and sync code without starting the V2 port early.
+- **Affects:** M7 V2 codecs, pending-update handling, sync/update helpers, and any tests that call V2-named helpers before M7.
+
+### DEC-0030 — M2.4 Doc tests are asserted at the milestone boundary
+- **Milestone:** M2.4
+- **Status:** accepted
+- **Decision:** `tests/Unit/DocTest.php` now contains real assertions for the M2.4 runtime, fixture ingestion/re-emission, state-vector parity, load/sync events, and root-type JSON behavior. The after-transaction recursion test uses 256 XML insertions instead of the JS suite's 15000, and the origin, full subdoc lifecycle/autoload, subdoc reload, subdoc load, and subdoc undo tests are explicit PHPUnit skips.
+- **Why:** The placeholder translated tests were risky because they asserted nothing. The adapted/skipped cases depend on later Text snapshot/toDelta cleanup, full subdoc provider semantics, UndoManager, and XML behavior outside M2.4 scope.
+- **Affects:** Later Text/XML/Undo/subdoc milestones should unskip or restore the full JS cases when their underlying behavior is ported.
+
+### DEC-0031 — Minimal public type wrappers delegate to generic M2.4 helpers
+- **Milestone:** M2.4
+- **Status:** accepted
+- **Decision:** `YArray`, `YMap`, `YText`, and XML fragment/text/element classes expose only the minimal public methods needed by Doc/update integration and current tests, routing list and map behavior through the `typeList*` and `typeMap*` namespace helpers.
+- **Why:** M2.4 needs integrated root types that can absorb, materialize, and re-emit updates, but the complete Array/Map/Text/XML APIs belong to the later type milestones.
+- **Affects:** M2.5-M2.7 type implementations, observer event details, list/map search marker behavior, and public type API completion.
+
+### DEC-0032 — Sync protocol implementation is the V1 subset
+- **Milestone:** M2.4
+- **Status:** accepted
+- **Decision:** `Yjs\Protocols\Sync` implements the V1 sync message flow (`writeSyncStep1`, `writeSyncStep2`, `readSyncStep1`, `readSyncStep2`, `writeUpdate`, and `readSyncMessage`) using lib0 varUint message wrappers plus `encodeStateVector()`, `encodeStateAsUpdate()`, and `applyUpdate()`.
+- **Why:** The milestone requires core update exchange and convergence, while sync V2 and awareness/provider behavior are outside the current scope.
+- **Affects:** Future sync/provider work, M7 V2 sync behavior, and any convergence harness that builds on the protocol helpers.
