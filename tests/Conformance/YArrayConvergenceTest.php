@@ -75,6 +75,11 @@ final class YArrayConvergenceTest extends TestCase {
 				\Yjs\encodeStateAsUpdate( $doc )->toHexString(),
 				$case['name'] . ' doc ' . $index . ' update'
 			);
+			self::assertSame(
+				$case['updateV2Hexes'][ $index ],
+				\Yjs\encodeStateAsUpdateV2( $doc )->toHexString(),
+				$case['name'] . ' doc ' . $index . ' update V2'
+			);
 		}
 	}
 

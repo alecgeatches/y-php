@@ -2226,7 +2226,7 @@ function createDocFromSnapshot( Utils\Doc $originDoc, Utils\Snapshot $snapshot, 
 		throw new \RuntimeException( 'Garbage-collection must be disabled in `originDoc`!' );
 	}
 	$newDoc  = $newDoc ?? new Utils\Doc();
-	$encoder = new Utils\UpdateEncoderV1();
+	$encoder = new Utils\UpdateEncoderV2();
 	$sv      = $snapshot->sv;
 	$ds      = $snapshot->ds;
 	$originDoc->transact(
@@ -2258,7 +2258,7 @@ function createDocFromSnapshot( Utils\Doc $originDoc, Utils\Snapshot $snapshot, 
 			writeDeleteSet( $encoder, $ds );
 		}
 	);
-	applyUpdate( $newDoc, $encoder->toUint8Array(), 'snapshot' );
+	applyUpdateV2( $newDoc, $encoder->toUint8Array(), 'snapshot' );
 	return $newDoc;
 }
 
@@ -2529,7 +2529,7 @@ function applyUpdate( Utils\Doc $ydoc, Lib0\Buffer $update, $transactionOrigin =
  * @param string      $YDecoder          Decoder class.
  * @return void
  */
-function applyUpdateV2( Utils\Doc $ydoc, Lib0\Buffer $update, $transactionOrigin = null, string $YDecoder = Utils\UpdateDecoderV1::class ): void {
+function applyUpdateV2( Utils\Doc $ydoc, Lib0\Buffer $update, $transactionOrigin = null, string $YDecoder = Utils\UpdateDecoderV2::class ): void {
 	$decoder = Lib0\Decoding::createDecoder( $update );
 	readUpdateV2( $decoder, $ydoc, $transactionOrigin, new $YDecoder( $decoder ) );
 }
@@ -2552,7 +2552,7 @@ function readUpdate( Lib0\Decoder $decoder, Utils\Doc $ydoc, $transactionOrigin 
  * @return void
  */
 function readUpdateV2( Lib0\Decoder $decoder, Utils\Doc $ydoc, $transactionOrigin = null, ?object $structDecoder = null ): void {
-	$structDecoder = $structDecoder ?? new Utils\UpdateDecoderV1( $decoder );
+	$structDecoder = $structDecoder ?? new Utils\UpdateDecoderV2( $decoder );
 	transact(
 		$ydoc,
 		function ( Utils\Transaction $transaction ) use ( $structDecoder ): void {
@@ -2589,7 +2589,7 @@ function writeStateAsUpdate( object $encoder, Utils\Doc $doc, array $targetState
  */
 function encodeStateAsUpdateV2( Utils\Doc $doc, ?Lib0\Buffer $encodedTargetStateVector = null, ?object $encoder = null ): Lib0\Buffer {
 	$targetStateVector = null === $encodedTargetStateVector ? array() : decodeStateVector( $encodedTargetStateVector );
-	$encoder           = $encoder ?? new Utils\UpdateEncoderV1();
+	$encoder           = $encoder ?? new Utils\UpdateEncoderV2();
 	writeStateAsUpdate( $encoder, $doc, $targetStateVector );
 	return $encoder->toUint8Array();
 }
@@ -2656,7 +2656,7 @@ function writeDocumentStateVector( object $encoder, Utils\Doc $doc ): object {
  * @return Lib0\Buffer
  */
 function encodeStateVectorV2( $doc, ?object $encoder = null ): Lib0\Buffer {
-	$encoder = $encoder ?? new Utils\DSEncoderV1();
+	$encoder = $encoder ?? new Utils\DSEncoderV2();
 	if ( is_array( $doc ) ) {
 		writeStateVector( $encoder, $doc );
 	} else {
@@ -2695,7 +2695,7 @@ function encodeSnapshot( Utils\Snapshot $snapshot ): Lib0\Buffer {
  * @return Utils\Snapshot
  */
 function decodeSnapshotV2( Lib0\Buffer $buf, ?object $decoder = null ): Utils\Snapshot {
-	$decoder = $decoder ?? new Utils\DSDecoderV1( Lib0\Decoding::createDecoder( $buf ) );
+	$decoder = $decoder ?? new Utils\DSDecoderV2( Lib0\Decoding::createDecoder( $buf ) );
 	return new Utils\Snapshot( readDeleteSet( $decoder ), readStateVector( $decoder ) );
 }
 
@@ -2705,7 +2705,7 @@ function decodeSnapshotV2( Lib0\Buffer $buf, ?object $decoder = null ): Utils\Sn
  * @return Lib0\Buffer
  */
 function encodeSnapshotV2( Utils\Snapshot $snapshot, ?object $encoder = null ): Lib0\Buffer {
-	$encoder = $encoder ?? new Utils\DSEncoderV1();
+	$encoder = $encoder ?? new Utils\DSEncoderV2();
 	writeDeleteSet( $encoder, $snapshot->ds );
 	writeStateVector( $encoder, $snapshot->sv );
 	return $encoder->toUint8Array();
@@ -2765,7 +2765,7 @@ function logUpdate( Lib0\Buffer $update ): void {
  * @param string      $YDecoder Decoder class.
  * @return void
  */
-function logUpdateV2( Lib0\Buffer $update, string $YDecoder = Utils\UpdateDecoderV1::class ): void {
+function logUpdateV2( Lib0\Buffer $update, string $YDecoder = Utils\UpdateDecoderV2::class ): void {
 	decodeUpdateV2( $update, $YDecoder );
 }
 
@@ -2782,7 +2782,7 @@ function decodeUpdate( Lib0\Buffer $update ): array {
  * @param string      $YDecoder Decoder class.
  * @return array{structs:array<int,Structs\AbstractStruct>,ds:Utils\DeleteSet}
  */
-function decodeUpdateV2( Lib0\Buffer $update, string $YDecoder = Utils\UpdateDecoderV1::class ): array {
+function decodeUpdateV2( Lib0\Buffer $update, string $YDecoder = Utils\UpdateDecoderV2::class ): array {
 	$updateDecoder = new $YDecoder( Lib0\Decoding::createDecoder( $update ) );
 	$lazyDecoder   = new Utils\LazyStructReader( $updateDecoder, false );
 	$structs       = array();
@@ -3265,9 +3265,16 @@ function cleanupTransactions( array &$transactionCleanups, int $i ): void {
 			$doc->clientID = generateNewClientId();
 		}
 		$doc->emit( 'afterTransactionCleanup', array( $transaction, $doc ) );
-		$encoder = new Utils\UpdateEncoderV1();
-		if ( writeUpdateMessageFromTransaction( $encoder, $transaction ) ) {
+		$encoder    = new Utils\UpdateEncoderV1();
+		$hasContent = writeUpdateMessageFromTransaction( $encoder, $transaction );
+		if ( $hasContent ) {
 			$doc->emit( 'update', array( $encoder->toUint8Array(), $transaction->origin, $doc, $transaction ) );
+		}
+		if ( $doc->hasObservers( 'updateV2' ) ) {
+			$v2Encoder = new Utils\UpdateEncoderV2();
+			if ( writeUpdateMessageFromTransaction( $v2Encoder, $transaction ) ) {
+				$doc->emit( 'updateV2', array( $v2Encoder->toUint8Array(), $transaction->origin, $doc, $transaction ) );
+			}
 		}
 		if ( 0 < objectStorageCount( $transaction->subdocsAdded ) || 0 < objectStorageCount( $transaction->subdocsRemoved ) || 0 < objectStorageCount( $transaction->subdocsLoaded ) ) {
 			foreach ( $transaction->subdocsAdded as $subdoc ) {
@@ -3362,7 +3369,7 @@ function mergeUpdates( array $updates ): Lib0\Buffer {
  * @param string                 $YEncoder Encoder class.
  * @return Lib0\Buffer
  */
-function mergeUpdatesV2( array $updates, string $YDecoder = Utils\UpdateDecoderV1::class, string $YEncoder = Utils\UpdateEncoderV1::class ): Lib0\Buffer {
+function mergeUpdatesV2( array $updates, string $YDecoder = Utils\UpdateDecoderV2::class, string $YEncoder = Utils\UpdateEncoderV2::class ): Lib0\Buffer {
 	if ( 1 === count( $updates ) ) {
 		return $updates[0];
 	}
@@ -3502,7 +3509,7 @@ function parseUpdateMeta( Lib0\Buffer $update ): array {
  * @param string      $YDecoder Decoder class.
  * @return array{from:array<int,int>,to:array<int,int>}
  */
-function parseUpdateMetaV2( Lib0\Buffer $update, string $YDecoder = Utils\UpdateDecoderV1::class ): array {
+function parseUpdateMetaV2( Lib0\Buffer $update, string $YDecoder = Utils\UpdateDecoderV2::class ): array {
 	$from          = array();
 	$to            = array();
 	$updateDecoder = new Utils\LazyStructReader( new $YDecoder( Lib0\Decoding::createDecoder( $update ) ), false );
@@ -3541,7 +3548,7 @@ function encodeStateVectorFromUpdate( Lib0\Buffer $update ): Lib0\Buffer {
  * @param string      $YDecoder Decoder class.
  * @return Lib0\Buffer
  */
-function encodeStateVectorFromUpdateV2( Lib0\Buffer $update, string $YEncoder = Utils\DSEncoderV1::class, string $YDecoder = Utils\UpdateDecoderV1::class ): Lib0\Buffer {
+function encodeStateVectorFromUpdateV2( Lib0\Buffer $update, string $YEncoder = Utils\DSEncoderV2::class, string $YDecoder = Utils\UpdateDecoderV2::class ): Lib0\Buffer {
 	$encoder       = new $YEncoder();
 	$updateDecoder = new Utils\LazyStructReader( new $YDecoder( Lib0\Decoding::createDecoder( $update ) ), false );
 	$curr          = $updateDecoder->curr;
@@ -3599,7 +3606,7 @@ function diffUpdate( Lib0\Buffer $update, Lib0\Buffer $sv ): Lib0\Buffer {
  * @param string      $YEncoder Encoder class.
  * @return Lib0\Buffer
  */
-function diffUpdateV2( Lib0\Buffer $update, Lib0\Buffer $sv, string $YDecoder = Utils\UpdateDecoderV1::class, string $YEncoder = Utils\UpdateEncoderV1::class ): Lib0\Buffer {
+function diffUpdateV2( Lib0\Buffer $update, Lib0\Buffer $sv, string $YDecoder = Utils\UpdateDecoderV2::class, string $YEncoder = Utils\UpdateEncoderV2::class ): Lib0\Buffer {
 	$state            = decodeStateVector( $sv );
 	$encoder          = new $YEncoder();
 	$lazyStructWriter = new Utils\LazyStructWriter( $encoder );
@@ -3731,7 +3738,7 @@ function convertUpdateFormat( Lib0\Buffer $update, callable $blockTransformer, s
  * @return Lib0\Buffer
  */
 function convertUpdateFormatV1ToV2( Lib0\Buffer $update ): Lib0\Buffer {
-	return convertUpdateFormat( $update, static fn ( $block ) => $block, Utils\UpdateDecoderV1::class, Utils\UpdateEncoderV1::class );
+	return convertUpdateFormat( $update, static fn ( $block ) => $block, Utils\UpdateDecoderV1::class, Utils\UpdateEncoderV2::class );
 }
 
 /**
@@ -3739,7 +3746,7 @@ function convertUpdateFormatV1ToV2( Lib0\Buffer $update ): Lib0\Buffer {
  * @return Lib0\Buffer
  */
 function convertUpdateFormatV2ToV1( Lib0\Buffer $update ): Lib0\Buffer {
-	return convertUpdateFormat( $update, static fn ( $block ) => $block, Utils\UpdateDecoderV1::class, Utils\UpdateEncoderV1::class );
+	return convertUpdateFormat( $update, static fn ( $block ) => $block, Utils\UpdateDecoderV2::class, Utils\UpdateEncoderV1::class );
 }
 
 /**
@@ -3757,7 +3764,7 @@ function obfuscateUpdate( Lib0\Buffer $update, ?array $opts = null ): Lib0\Buffe
  * @return Lib0\Buffer
  */
 function obfuscateUpdateV2( Lib0\Buffer $update, ?array $opts = null ): Lib0\Buffer {
-	return obfuscateUpdate( $update, $opts );
+	return convertUpdateFormat( $update, createObfuscator( $opts ?? array() ), Utils\UpdateDecoderV2::class, Utils\UpdateEncoderV2::class );
 }
 
 /**
@@ -4186,7 +4193,7 @@ function equalDeleteSets( Utils\DeleteSet $ds1, Utils\DeleteSet $ds2 ): bool {
  * @param string         $YDecoder Decoder class.
  * @return bool
  */
-function snapshotContainsUpdateV2( Utils\Snapshot $snapshot, Lib0\Buffer $update, string $YDecoder = Utils\UpdateDecoderV1::class ): bool {
+function snapshotContainsUpdateV2( Utils\Snapshot $snapshot, Lib0\Buffer $update, string $YDecoder = Utils\UpdateDecoderV2::class ): bool {
 	$updateDecoder = new $YDecoder( Lib0\Decoding::createDecoder( $update ) );
 	$lazyDecoder   = new Utils\LazyStructReader( $updateDecoder, false );
 	for ( $curr = $lazyDecoder->curr; null !== $curr; $curr = $lazyDecoder->next() ) {

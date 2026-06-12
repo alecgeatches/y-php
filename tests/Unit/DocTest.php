@@ -326,6 +326,7 @@ final class DocTest extends TestCase {
 
 			self::assertSame( $scenario['stateVectorHex'], \Yjs\encodeStateVector( $doc )->toHexString(), $scenario['name'] . ' state vector' );
 			self::assertSame( $scenario['updateHex'], \Yjs\encodeStateAsUpdate( $doc )->toHexString(), $scenario['name'] . ' update' );
+			self::assertSame( $scenario['updateV2Hex'], \Yjs\encodeStateAsUpdateV2( $doc )->toHexString(), $scenario['name'] . ' update V2' );
 		}
 	}
 

@@ -45,6 +45,52 @@ final class Str {
 
 	/**
 	 * @param string $string UTF-8 string.
+	 * @return int
+	 */
+	public static function utf16Length( string $string ): int {
+		$length = 0;
+		foreach ( self::utf8Chars( $string ) as $char ) {
+			$length += self::utf16UnitLength( $char );
+		}
+		return $length;
+	}
+
+	/**
+	 * @param string   $string UTF-8 string.
+	 * @param int      $start  Inclusive UTF-16 code-unit start.
+	 * @param int|null $end    Exclusive UTF-16 code-unit end.
+	 * @return string
+	 */
+	public static function sliceUtf16( string $string, int $start, ?int $end = null ): string {
+		if ( null !== $end && $end <= $start ) {
+			return '';
+		}
+
+		$out      = '';
+		$position = 0;
+		$limit    = $end;
+
+		foreach ( self::utf8Chars( $string ) as $char ) {
+			$unitLength = self::utf16UnitLength( $char );
+			$next       = $position + $unitLength;
+
+			if ( $next <= $start ) {
+				$position = $next;
+				continue;
+			}
+			if ( null !== $limit && $position >= $limit ) {
+				break;
+			}
+
+			$out     .= $char;
+			$position = $next;
+		}
+
+		return $out;
+	}
+
+	/**
+	 * @param string $string UTF-8 string.
 	 * @return Buffer
 	 */
 	public static function encodeUtf8( string $string ): Buffer {
@@ -77,5 +123,47 @@ final class Str {
 	 */
 	public static function repeat( string $source, int $count ): string {
 		return str_repeat( $source, $count );
+	}
+
+	/**
+	 * @param string $string UTF-8 string.
+	 * @return array<int,string>
+	 */
+	private static function utf8Chars( string $string ): array {
+		if ( '' === $string ) {
+			return array();
+		}
+
+		$matches = array();
+		if ( false === preg_match_all( '/./us', $string, $matches ) ) {
+			return str_split( $string );
+		}
+		return $matches[0];
+	}
+
+	/**
+	 * @param string $char UTF-8 character.
+	 * @return int
+	 */
+	private static function utf16UnitLength( string $char ): int {
+		return self::codePoint( $char ) > 0xFFFF ? 2 : 1;
+	}
+
+	/**
+	 * @param string $char UTF-8 character.
+	 * @return int
+	 */
+	private static function codePoint( string $char ): int {
+		$first = ord( $char[0] );
+		if ( $first < 0x80 ) {
+			return $first;
+		}
+		if ( $first < 0xE0 ) {
+			return ( ( $first & 0x1F ) << 6 ) | ( ord( $char[1] ) & 0x3F );
+		}
+		if ( $first < 0xF0 ) {
+			return ( ( $first & 0x0F ) << 12 ) | ( ( ord( $char[1] ) & 0x3F ) << 6 ) | ( ord( $char[2] ) & 0x3F );
+		}
+		return ( ( $first & 0x07 ) << 18 ) | ( ( ord( $char[1] ) & 0x3F ) << 12 ) | ( ( ord( $char[2] ) & 0x3F ) << 6 ) | ( ord( $char[3] ) & 0x3F );
 	}
 }

@@ -64,6 +64,14 @@ class Observable {
 	}
 
 	/**
+	 * @param string $name Event name.
+	 * @return bool
+	 */
+	public function hasObservers( string $name ): bool {
+		return ! empty( $this->observers[ $name ] );
+	}
+
+	/**
 	 * @param string           $name Event name.
 	 * @param array<int,mixed> $args Arguments.
 	 * @return void

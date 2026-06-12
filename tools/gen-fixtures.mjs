@@ -30,6 +30,8 @@ import {
   writeDeleteSet as yWriteDeleteSet
 } from '../../yjs/src/utils/DeleteSet.js'
 import { readID as yReadID, writeID as yWriteID } from '../../yjs/src/utils/ID.js'
+import { DSEncoderV2 } from '../../yjs/src/utils/UpdateEncoder.js'
+import { DSDecoderV2 } from '../../yjs/src/utils/UpdateDecoder.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const fixturesDir = path.join(__dirname, '..', 'tests', 'fixtures')
@@ -263,8 +265,10 @@ const captureYjsScenario = (name, clientID, apply) => {
     name,
     json: doc.toJSON(),
     updateHex: hex(Y.encodeStateAsUpdate(doc)),
+    updateV2Hex: hex(Y.encodeStateAsUpdateV2(doc)),
     stateVectorHex: hex(Y.encodeStateVector(doc)),
-    snapshotHex: hex(Y.encodeSnapshot(Y.snapshot(doc)))
+    snapshotHex: hex(Y.encodeSnapshot(Y.snapshot(doc))),
+    snapshotV2Hex: hex(Y.encodeSnapshotV2(Y.snapshot(doc)))
   }
 }
 
@@ -346,6 +350,67 @@ const makeUpdateUtilityFixtures = () => ({
   ]
 })
 
+const captureUpdateUtilityV2Case = (name, setup) => {
+  const updatesV1 = []
+  const updatesV2 = []
+  const doc = new Y.Doc({ gc: false, guid: `y-php-update-utils-v2-${name}` })
+  doc.clientID = 10
+  doc.on('update', update => updatesV1.push(update))
+  doc.on('updateV2', update => updatesV2.push(update))
+  setup(doc)
+  const mergedV2 = Y.mergeUpdatesV2(updatesV2)
+  const firstMergedV2 = Y.mergeUpdatesV2(updatesV2.slice(0, 1))
+  const firstStateVectorV2 = Y.encodeStateVectorFromUpdateV2(firstMergedV2)
+  const diffFromFirstV2 = Y.diffUpdateV2(mergedV2, firstStateVectorV2)
+  const finalUpdateV1 = Y.encodeStateAsUpdate(doc)
+  const finalUpdateV2 = Y.encodeStateAsUpdateV2(doc)
+  return {
+    name,
+    updatesV1Hex: updatesV1.map(hex),
+    updatesV2Hex: updatesV2.map(hex),
+    finalUpdateV1Hex: hex(finalUpdateV1),
+    finalUpdateV2Hex: hex(finalUpdateV2),
+    mergedV2Hex: hex(mergedV2),
+    stateVectorFromMergedV2Hex: hex(Y.encodeStateVectorFromUpdateV2(mergedV2)),
+    finalStateVectorHex: hex(Y.encodeStateVector(doc)),
+    firstStateVectorV2Hex: hex(firstStateVectorV2),
+    diffFromFirstV2Hex: hex(diffFromFirstV2),
+    parseMergedMetaV2: updateMetaDescriptor(Y.parseUpdateMetaV2(mergedV2)),
+    snapshotV2Hex: hex(Y.encodeSnapshotV2(Y.snapshot(doc))),
+    convertedFinalV1ToV2Hex: hex(Y.convertUpdateFormatV1ToV2(finalUpdateV1)),
+    convertedFinalV2ToV1Hex: hex(Y.convertUpdateFormatV2ToV1(finalUpdateV2)),
+    obfuscatedFinalV2Hex: hex(Y.obfuscateUpdateV2(finalUpdateV2))
+  }
+}
+
+const makeUpdateUtilityV2Fixtures = () => ({
+  source: 'yjs/src/utils/updates.js',
+  cases: [
+    captureUpdateUtilityV2Case('array-overlap', doc => {
+      const array = doc.getArray('array')
+      array.insert(0, [1])
+      array.insert(0, [2])
+      array.insert(0, [3])
+      array.delete(1, 1)
+    }),
+    captureUpdateUtilityV2Case('text-format-delete', doc => {
+      const text = doc.getText('text')
+      text.insert(0, 'hello')
+      text.format(0, 5, { bold: true })
+      text.delete(1, 2)
+      text.insert(1, 'i')
+    }),
+    captureUpdateUtilityV2Case('map-nested-type', doc => {
+      const map = doc.getMap('map')
+      const nested = new Y.Array()
+      map.set('nested', nested)
+      nested.insert(0, ['a', 'b'])
+      map.set('flag', true)
+      nested.delete(0, 1)
+    })
+  ]
+})
+
 const runYArrayConvergenceCase = (seed, iterations, users) => {
   const gen = prng.create(seed)
   const docs = Array.from({ length: users }, (_, i) => {
@@ -413,6 +478,7 @@ const runYArrayConvergenceCase = (seed, iterations, users) => {
     operations,
     json: docs.map(doc => doc.getArray('array').toJSON()),
     updateHexes: docs.map(doc => hex(Y.encodeStateAsUpdate(doc))),
+    updateV2Hexes: docs.map(doc => hex(Y.encodeStateAsUpdateV2(doc))),
     stateVectorHexes: docs.map(doc => hex(Y.encodeStateVector(doc)))
   }
 }
@@ -476,6 +542,7 @@ const runYMapConvergenceCase = (seed, iterations, users) => {
     operations,
     json: docs.map(doc => doc.getMap('map').toJSON()),
     updateHexes: docs.map(doc => hex(Y.encodeStateAsUpdate(doc))),
+    updateV2Hexes: docs.map(doc => hex(Y.encodeStateAsUpdateV2(doc))),
     stateVectorHexes: docs.map(doc => hex(Y.encodeStateVector(doc)))
   }
 }
@@ -503,8 +570,10 @@ const captureYTextScenario = (name, clientID, apply) => {
     delta: doc.getText('text').toDelta(),
     string: doc.getText('text').toString(),
     updateHex: hex(Y.encodeStateAsUpdate(doc)),
+    updateV2Hex: hex(Y.encodeStateAsUpdateV2(doc)),
     stateVectorHex: hex(Y.encodeStateVector(doc)),
-    snapshotHex: hex(Y.encodeSnapshot(Y.snapshot(doc)))
+    snapshotHex: hex(Y.encodeSnapshot(Y.snapshot(doc))),
+    snapshotV2Hex: hex(Y.encodeSnapshotV2(Y.snapshot(doc)))
   }
 }
 
@@ -606,6 +675,7 @@ const runYTextConvergenceCase = (seed, iterations, users) => {
     deltas: docs.map(doc => doc.getText('text').toDelta()),
     strings: docs.map(doc => doc.getText('text').toString()),
     updateHexes: docs.map(doc => hex(Y.encodeStateAsUpdate(doc))),
+    updateV2Hexes: docs.map(doc => hex(Y.encodeStateAsUpdateV2(doc))),
     stateVectorHexes: docs.map(doc => hex(Y.encodeStateVector(doc)))
   }
 }
@@ -670,8 +740,10 @@ const captureYXmlScenario = (name, clientID, rootType, rootName, apply) => {
     rootType: rootType.name,
     descriptor: xmlDescriptor(root),
     updateHex: hex(Y.encodeStateAsUpdate(doc)),
+    updateV2Hex: hex(Y.encodeStateAsUpdateV2(doc)),
     stateVectorHex: hex(Y.encodeStateVector(doc)),
-    snapshotHex: hex(Y.encodeSnapshot(Y.snapshot(doc)))
+    snapshotHex: hex(Y.encodeSnapshot(Y.snapshot(doc))),
+    snapshotV2Hex: hex(Y.encodeSnapshotV2(Y.snapshot(doc)))
   }
 }
 
@@ -801,6 +873,7 @@ const runYXmlConvergenceCase = (seed, iterations, users) => {
     descriptors: docs.map(doc => xmlDescriptor(doc.get('xml', YXmlElement))),
     strings: docs.map(doc => doc.get('xml', YXmlElement).toString()),
     updateHexes: docs.map(doc => hex(Y.encodeStateAsUpdate(doc))),
+    updateV2Hexes: docs.map(doc => hex(Y.encodeStateAsUpdateV2(doc))),
     stateVectorHexes: docs.map(doc => hex(Y.encodeStateVector(doc)))
   }
 }
@@ -818,7 +891,7 @@ const descriptorUpdateCodecValue = value => value instanceof Y.ID
   ? id(value.client, value.clock)
   : descriptor(value)
 
-const encodeUpdateCodecCase = (name, method, input) => {
+const encodeUpdateCodecCase = (name, method, input, version = 1) => {
   const value = materializeUpdateCodecInput(input)
   let bytes
   if (method === 'writeID') {
@@ -826,7 +899,7 @@ const encodeUpdateCodecCase = (name, method, input) => {
     yWriteID(encoder, value)
     bytes = encoding.toUint8Array(encoder)
   } else {
-    const encoder = new Y.UpdateEncoderV1()
+    const encoder = version === 2 ? new Y.UpdateEncoderV2() : new Y.UpdateEncoderV1()
     switch (method) {
       case 'writeLeftID':
         encoder.writeLeftID(value)
@@ -881,7 +954,7 @@ const encodeUpdateCodecCase = (name, method, input) => {
   if (method === 'writeID') {
     decoded = yReadID(decoder)
   } else {
-    const updateDecoder = new Y.UpdateDecoderV1(decoder)
+    const updateDecoder = version === 2 ? new Y.UpdateDecoderV2(decoder) : new Y.UpdateDecoderV1(decoder)
     switch (method) {
       case 'writeLeftID':
         decoded = updateDecoder.readLeftID()
@@ -974,6 +1047,38 @@ const makeUpdateCodecFixtures = () => ({
   ]
 })
 
+const makeUpdateCodecV2Fixtures = () => ({
+  source: 'yjs/src/utils/ID.js + yjs/src/utils/UpdateEncoder.js + yjs/src/utils/UpdateDecoder.js',
+  cases: [
+    encodeUpdateCodecCase('writeID small', 'writeID', id(1, 0), 2),
+    encodeUpdateCodecCase('writeID uint32 edge', 'writeID', id(4294967295, 4294967295), 2),
+    encodeUpdateCodecCase('writeLeftID', 'writeLeftID', id(42, 7), 2),
+    encodeUpdateCodecCase('writeRightID', 'writeRightID', id(4294967295, 128), 2),
+    encodeUpdateCodecCase('writeClient uint32 edge', 'writeClient', number(4294967295), 2),
+    encodeUpdateCodecCase('writeInfo zero', 'writeInfo', number(0), 2),
+    encodeUpdateCodecCase('writeInfo max', 'writeInfo', number(255), 2),
+    encodeUpdateCodecCase('writeString unicode slash', 'writeString', string('snow \u2603 / slash'), 2),
+    encodeUpdateCodecCase('writeString emoji', 'writeString', string('a\ud83d\ude0ab'), 2),
+    encodeUpdateCodecCase('writeParentInfo true', 'writeParentInfo', bool(true), 2),
+    encodeUpdateCodecCase('writeParentInfo false', 'writeParentInfo', bool(false), 2),
+    encodeUpdateCodecCase('writeTypeRef', 'writeTypeRef', number(9), 2),
+    encodeUpdateCodecCase('writeLen', 'writeLen', number(16384), 2),
+    encodeUpdateCodecCase('writeAny object', 'writeAny', object([
+      ['alpha', number(1)],
+      ['beta', array([bool(true), string('ok')])]
+    ]), 2),
+    encodeUpdateCodecCase('writeBuf', 'writeBuf', uint8array([0, 1, 127, 128, 255]), 2),
+    encodeUpdateCodecCase('writeJSON object', 'writeJSON', object([
+      ['url', string('https://example.com/a/b')],
+      ['snow', string('\u2603')],
+      ['arr', array([number(1), nil()])]
+    ]), 2),
+    encodeUpdateCodecCase('writeKey first', 'writeKey', string('parent/key'), 2),
+    encodeUpdateCodecCase('writeDsClock', 'writeDsClock', number(4294967295), 2),
+    encodeUpdateCodecCase('writeDsLen', 'writeDsLen', number(65536), 2)
+  ]
+})
+
 const deleteSetDescriptor = ds => Array.from(ds.clients.entries()).map(([client, deletes]) => ({
   client,
   deletes: deletes.map(item => ({ clock: item.clock, len: item.len }))
@@ -1020,6 +1125,43 @@ const makeDeleteSetFixtures = () => ({
     ]),
     encodeDeleteSetCase('large clocks and lengths', [
       { client: 123456789, deletes: [{ clock: 4294967290, len: 5 }, { clock: 9007199, len: 65536 }] }
+    ])
+  ]
+})
+
+const encodeDeleteSetV2Case = (name, input) => {
+  const ds = materializeDeleteSet(input)
+  const encoder = new DSEncoderV2()
+  yWriteDeleteSet(encoder, ds)
+  const bytes = encoder.toUint8Array()
+  const decoder = new DSDecoderV2(decoding.createDecoder(bytes))
+  const decoded = yReadDeleteSet(decoder)
+  if (decoding.hasContent(decoder.restDecoder)) {
+    throw new Error(`Delete-set V2 fixture case ${name} left unread bytes`)
+  }
+
+  return {
+    name,
+    input,
+    decoded: deleteSetDescriptor(decoded),
+    hex: hex(bytes)
+  }
+}
+
+const makeDeleteSetV2Fixtures = () => ({
+  source: 'yjs/src/utils/DeleteSet.js + yjs/src/utils/UpdateEncoder.js + yjs/src/utils/UpdateDecoder.js',
+  cases: [
+    encodeDeleteSetV2Case('empty delete set', []),
+    encodeDeleteSetV2Case('single client delete set', [
+      { client: 1, deletes: [{ clock: 0, len: 1 }, { clock: 3, len: 2 }, { clock: 10, len: 5 }] }
+    ]),
+    encodeDeleteSetV2Case('multi client delete set sorts clients descending', [
+      { client: 2, deletes: [{ clock: 0, len: 3 }, { clock: 8, len: 1 }] },
+      { client: 4294967295, deletes: [{ clock: 1, len: 4 }] },
+      { client: 1, deletes: [{ clock: 7, len: 2 }] }
+    ]),
+    encodeDeleteSetV2Case('large clocks and lengths', [
+      { client: 123456789, deletes: [{ clock: 9007199, len: 65536 }, { clock: 4294967290, len: 5 }] }
     ])
   ]
 })
@@ -1298,6 +1440,10 @@ fs.writeFileSync(
   `${JSON.stringify(makeUpdateUtilityFixtures(), null, 2)}\n`
 )
 fs.writeFileSync(
+  path.join(fixturesDir, 'update-utilities-v2.json'),
+  `${JSON.stringify(makeUpdateUtilityV2Fixtures(), null, 2)}\n`
+)
+fs.writeFileSync(
   path.join(fixturesDir, 'yarray-convergence.json'),
   `${JSON.stringify(makeYArrayConvergenceFixtures(), null, 2)}\n`
 )
@@ -1326,8 +1472,16 @@ fs.writeFileSync(
   `${JSON.stringify(makeUpdateCodecFixtures(), null, 2)}\n`
 )
 fs.writeFileSync(
+  path.join(fixturesDir, 'update-codecs-v2.json'),
+  `${JSON.stringify(makeUpdateCodecV2Fixtures(), null, 2)}\n`
+)
+fs.writeFileSync(
   path.join(fixturesDir, 'delete-set-v1.json'),
   `${JSON.stringify(makeDeleteSetFixtures(), null, 2)}\n`
+)
+fs.writeFileSync(
+  path.join(fixturesDir, 'delete-set-v2.json'),
+  `${JSON.stringify(makeDeleteSetV2Fixtures(), null, 2)}\n`
 )
 fs.writeFileSync(
   path.join(fixturesDir, 'struct-content.json'),

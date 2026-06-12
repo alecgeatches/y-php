@@ -46,7 +46,9 @@ final class YXmlConformanceTest extends TestCase {
 		self::assertSame( $this->normalizeJsonValue( $scenario['descriptor'] ), $this->normalizeJsonValue( $this->xmlDescriptor( $root ) ), $scenario['name'] . ' descriptor' );
 		self::assertSame( $scenario['stateVectorHex'], \Yjs\encodeStateVector( $doc )->toHexString(), $scenario['name'] . ' state vector' );
 		self::assertSame( $scenario['updateHex'], \Yjs\encodeStateAsUpdate( $doc )->toHexString(), $scenario['name'] . ' update' );
+		self::assertSame( $scenario['updateV2Hex'], \Yjs\encodeStateAsUpdateV2( $doc )->toHexString(), $scenario['name'] . ' update V2' );
 		self::assertSame( $scenario['snapshotHex'], \Yjs\encodeSnapshot( \Yjs\snapshot( $doc ) )->toHexString(), $scenario['name'] . ' snapshot' );
+		self::assertSame( $scenario['snapshotV2Hex'], \Yjs\encodeSnapshotV2( \Yjs\snapshot( $doc ) )->toHexString(), $scenario['name'] . ' snapshot V2' );
 	}
 
 	/**
@@ -96,6 +98,7 @@ final class YXmlConformanceTest extends TestCase {
 			self::assertSame( $this->normalizeJsonValue( $case['descriptors'][ $index ] ), $this->normalizeJsonValue( $this->xmlDescriptor( $xml ) ), $case['name'] . ' doc ' . $index . ' descriptor' );
 			self::assertSame( $case['stateVectorHexes'][ $index ], \Yjs\encodeStateVector( $doc )->toHexString(), $case['name'] . ' doc ' . $index . ' state vector' );
 			self::assertSame( $case['updateHexes'][ $index ], \Yjs\encodeStateAsUpdate( $doc )->toHexString(), $case['name'] . ' doc ' . $index . ' update' );
+			self::assertSame( $case['updateV2Hexes'][ $index ], \Yjs\encodeStateAsUpdateV2( $doc )->toHexString(), $case['name'] . ' doc ' . $index . ' update V2' );
 		}
 	}
 

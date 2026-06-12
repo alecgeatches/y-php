@@ -348,7 +348,7 @@ Use the next free `DEC-NNNN` number. Never edit a prior entry's decision; if it 
 
 ### DEC-0046 — Snapshot restore uses V1 update encoding until V2 exists
 - **Milestone:** M5
-- **Status:** accepted
+- **Status:** superseded by DEC-0055
 - **Decision:** Complete snapshot helpers (`typeListToArraySnapshot()`, `typeMapGetSnapshot()`, `typeMapGetAllSnapshot()`, `createDocFromSnapshot()`, `snapshotContainsUpdate()`) on the V1 path. `createDocFromSnapshot()` writes the snapshot restore update with `UpdateEncoderV1`; V2-facing conversion helpers remain V1 passthroughs/stubs until M7 implements real V2 codecs.
 - **Why:** The JS source routes snapshot restore through update encoding, but DEC-0003 defers V2. Using V1 now satisfies M5 byte parity for the required snapshot/update tests without inventing a partial V2 format.
 - **Affects:** Snapshot consumers, update containment checks, M7 V2 conversion, and any caller expecting V1 update bytes from restored snapshot docs.
@@ -401,3 +401,38 @@ Use the next free `DEC-NNNN` number. Never edit a prior entry's decision; if it 
 - **Decision:** `Yjs\Utils\Doc::destroy()` now mirrors `yjs/src/utils/Doc.js`: when destroying an integrated subdocument, clear the old doc's `_item`, replace the `ContentDoc::$doc` carrier with a new `Doc` with the same guid/options and `shouldLoad => false`, attach that new doc to the item, and transact on the parent doc with the new doc in `subdocsAdded` and the old doc in `subdocsRemoved`.
 - **Why:** JS keeps a deleted/destroyed subdoc slot loadable by swapping in a fresh unloaded document. Without this, `subdocs.get(key)->destroy()`, subsequent `load()`, and remote update decoding cannot produce the expected `subdocs` add/remove/load event sequence.
 - **Affects:** Subdocument lifecycle events, `getSubdocGuids()`, update decoding of `ContentDoc`, future provider/autoload behavior, and undo/subdoc edge-case tests.
+
+### DEC-0054 — V2 optimized lib0 codecs are standalone classes
+- **Milestone:** M7
+- **Status:** accepted
+- **Decision:** Add `Yjs\Lib0\RleEncoder`/`RleDecoder`, `UintOptRleEncoder`/`UintOptRleDecoder`, `IntDiffOptRleEncoder`/`IntDiffOptRleDecoder`, and `StringEncoder`/`StringDecoder` as standalone classes that wrap the existing `Encoder`/`Decoder` primitives. `StringEncoder` records lengths in JavaScript UTF-16 code units via `Str::utf16Length()`/`Str::sliceUtf16()`, and `UintOptRleEncoder` preserves the negative-zero repeat marker for repeated zero values.
+- **Why:** `UpdateEncoderV2` depends on lib0's optimized RLE/diff/string streams, but PHP's existing `Encoder`/`Decoder` classes are final wrappers around binary strings. Standalone wrappers preserve the JS byte format without changing the M0 primitive carrier.
+- **Affects:** V2 update codecs, V2 snapshot/delete-set encoding, any future lib0 optimized encoding users, and tests involving non-ASCII strings in V2 string streams.
+
+### DEC-0055 — Real V2 codecs replace the V1-backed shims
+- **Milestone:** M7
+- **Status:** accepted
+- **Decision:** Implement `Yjs\Utils\DSEncoderV2`, `DSDecoderV2`, `UpdateEncoderV2`, and `UpdateDecoderV2` from the JS source. V2-named helpers now default to V2 classes (`applyUpdateV2`, `encodeStateAsUpdateV2`, `mergeUpdatesV2`, `diffUpdateV2`, `encodeSnapshotV2`/`decodeSnapshotV2`, `encodeStateVectorFromUpdateV2`, `parseUpdateMetaV2`, `decodeUpdateV2`, `snapshotContainsUpdateV2`, and `obfuscateUpdateV2`). V1 public helpers still force V1. `convertUpdateFormatV1ToV2()` uses a V1 decoder and V2 encoder; `convertUpdateFormatV2ToV1()` uses a V2 decoder and V1 encoder. `createDocFromSnapshot()` now writes and applies the JS-default V2 restore update.
+- **Why:** M7 removes the deferral from DEC-0003/DEC-0029/DEC-0045 and matches the upstream JS defaults. Keeping V1 wrappers explicit preserves existing V1 byte contracts while the V2 APIs finally emit/read real V2 bytes.
+- **Affects:** All V2 update/snapshot callers, offline update utilities, snapshot restore, conversion/obfuscation, and any code that previously relied on V2-named helpers accepting V1 bytes by default.
+
+### DEC-0056 — V2 key encoding keeps the JS disabled key cache
+- **Milestone:** M7
+- **Status:** accepted
+- **Decision:** `UpdateEncoderV2::writeKey()` writes the current `keyClock`, increments it, and writes the key string, but does not populate `UpdateEncoderV2::$keyMap`, mirroring the commented-out `this.keyMap.set(key, this.keyClock)` line in `yjs/src/utils/UpdateEncoder.js`.
+- **Why:** Upstream intentionally leaves key reuse disabled for compatibility with older decoders. Enabling the cache in PHP would produce shorter but non-JS V2 bytes.
+- **Affects:** `ContentFormat` encoding, rich-text/XML formatting updates, V2 byte fixtures, and any later attempt to optimize key streams.
+
+### DEC-0057 — `updateV2` event is emitted only when observed
+- **Milestone:** M7
+- **Status:** accepted
+- **Decision:** Add `Yjs\Lib0\Observable::hasObservers()` and emit a transaction `updateV2` event with `UpdateEncoderV2` only when the doc has `updateV2` listeners. The existing `update` event remains V1.
+- **Why:** JS checks `doc._observers.has('updateV2')` before paying the V2 encoding cost. PHP needed a small observable helper to mirror that behavior without exposing the observer array directly.
+- **Affects:** Provider/sync layers that subscribe to doc updates, V2 fixture capture, future test connectors that choose V2 updates, and transaction cleanup performance.
+
+### DEC-0058 — V2 fixture coverage extends the operation-log oracle
+- **Milestone:** M7
+- **Status:** accepted
+- **Decision:** `tools/gen-fixtures.mjs` now writes `update-codecs-v2.json`, `delete-set-v2.json`, and `update-utilities-v2.json`; existing scenario/convergence fixtures include `updateV2Hex`/`updateV2Hexes` and `snapshotV2Hex` where applicable. The V2 delete-set fixture's large-clock case keeps delete items sorted by clock because V2 delete-set clocks are diff-encoded from the previous delete range.
+- **Why:** M7's exit criterion needs JS-byte parity for V2 codec primitives, update utilities, conversions, obfuscation, snapshots, and fuzz-style operation logs. V1 tolerated an unsorted synthetic delete-set fixture because it wrote absolute clocks; V2 must reflect the sorted delete-set invariant produced by real Yjs.
+- **Affects:** Fixture regeneration, conformance tests for V2 update utilities and type convergence, and any future synthetic delete-set fixtures.

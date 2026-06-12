@@ -14,7 +14,7 @@ use Yjs\Lib0\Buffer;
 use Yjs\Utils\Doc;
 
 /**
- * Verifies that PHP can ingest JS updates and re-emit identical V1 bytes.
+ * Verifies that PHP can ingest JS updates and re-emit identical bytes.
  */
 final class UpdateRoundTripTest extends TestCase {
 	/**
@@ -40,6 +40,12 @@ final class UpdateRoundTripTest extends TestCase {
 
 		self::assertSame( $scenario['stateVectorHex'], \Yjs\encodeStateVector( $doc )->toHexString(), $scenario['name'] . ' state vector' );
 		self::assertSame( $scenario['updateHex'], \Yjs\encodeStateAsUpdate( $doc )->toHexString(), $scenario['name'] . ' update' );
+		self::assertSame( $scenario['updateV2Hex'], \Yjs\encodeStateAsUpdateV2( $doc )->toHexString(), $scenario['name'] . ' update V2' );
+
+		$v2Doc = new Doc();
+		\Yjs\applyUpdateV2( $v2Doc, Buffer::fromHexString( $scenario['updateV2Hex'] ) );
+		self::assertSame( $scenario['stateVectorHex'], \Yjs\encodeStateVector( $v2Doc )->toHexString(), $scenario['name'] . ' V2 state vector' );
+		self::assertSame( $scenario['updateHex'], \Yjs\encodeStateAsUpdate( $v2Doc )->toHexString(), $scenario['name'] . ' V2 to V1 update' );
 	}
 
 	/**

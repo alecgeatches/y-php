@@ -1,6 +1,6 @@
 <?php
 /**
- * UpdateEncoderV2 public API stub.
+ * Update encoder V2.
  *
  * @package Yjs
  */
@@ -9,161 +9,212 @@ declare(strict_types=1);
 
 namespace Yjs\Utils;
 
+use Yjs\Lib0\Buffer;
+use Yjs\Lib0\Encoding;
+use Yjs\Lib0\IntDiffOptRleEncoder;
+use Yjs\Lib0\RleEncoder;
+use Yjs\Lib0\StringEncoder;
+use Yjs\Lib0\UintOptRleEncoder;
+
 /**
- * UpdateEncoderV2 API stub for the Yjs port red baseline.
+ * Port of UpdateEncoderV2 from yjs/src/utils/UpdateEncoder.js.
  */
-class UpdateEncoderV2 {
-	use \Yjs\NotImplementedTrait;
+class UpdateEncoderV2 extends DSEncoderV2 {
+	/**
+	 * @var array<string,int>
+	 */
+	private array $keyMap = array();
 
 	/**
-	 * @param mixed ...$args Constructor arguments.
+	 * @var int
 	 */
-	public function __construct( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	private int $keyClock = 0;
+
+	/**
+	 * @var IntDiffOptRleEncoder
+	 */
+	private IntDiffOptRleEncoder $keyClockEncoder;
+
+	/**
+	 * @var UintOptRleEncoder
+	 */
+	private UintOptRleEncoder $clientEncoder;
+
+	/**
+	 * @var IntDiffOptRleEncoder
+	 */
+	private IntDiffOptRleEncoder $leftClockEncoder;
+
+	/**
+	 * @var IntDiffOptRleEncoder
+	 */
+	private IntDiffOptRleEncoder $rightClockEncoder;
+
+	/**
+	 * @var RleEncoder
+	 */
+	private RleEncoder $infoEncoder;
+
+	/**
+	 * @var StringEncoder
+	 */
+	private StringEncoder $stringEncoder;
+
+	/**
+	 * @var RleEncoder
+	 */
+	private RleEncoder $parentInfoEncoder;
+
+	/**
+	 * @var UintOptRleEncoder
+	 */
+	private UintOptRleEncoder $typeRefEncoder;
+
+	/**
+	 * @var UintOptRleEncoder
+	 */
+	private UintOptRleEncoder $lenEncoder;
+
+	public function __construct() {
+		parent::__construct();
+		$this->keyClockEncoder   = new IntDiffOptRleEncoder();
+		$this->clientEncoder     = new UintOptRleEncoder();
+		$this->leftClockEncoder  = new IntDiffOptRleEncoder();
+		$this->rightClockEncoder = new IntDiffOptRleEncoder();
+		$this->infoEncoder       = new RleEncoder(
+			static function ( \Yjs\Lib0\Encoder $encoder, int $value ): void {
+				Encoding::writeUint8( $encoder, $value );
+			}
+		);
+		$this->stringEncoder     = new StringEncoder();
+		$this->parentInfoEncoder = new RleEncoder(
+			static function ( \Yjs\Lib0\Encoder $encoder, int $value ): void {
+				Encoding::writeUint8( $encoder, $value );
+			}
+		);
+		$this->typeRefEncoder    = new UintOptRleEncoder();
+		$this->lenEncoder        = new UintOptRleEncoder();
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return Buffer
 	 */
-	public function toUint8Array( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function toUint8Array(): Buffer {
+		$encoder = Encoding::createEncoder();
+		Encoding::writeVarUint( $encoder, 0 );
+		Encoding::writeVarUint8Array( $encoder, $this->keyClockEncoder->toUint8Array() );
+		Encoding::writeVarUint8Array( $encoder, $this->clientEncoder->toUint8Array() );
+		Encoding::writeVarUint8Array( $encoder, $this->leftClockEncoder->toUint8Array() );
+		Encoding::writeVarUint8Array( $encoder, $this->rightClockEncoder->toUint8Array() );
+		Encoding::writeVarUint8Array( $encoder, $this->infoEncoder->toUint8Array() );
+		Encoding::writeVarUint8Array( $encoder, $this->stringEncoder->toUint8Array() );
+		Encoding::writeVarUint8Array( $encoder, $this->parentInfoEncoder->toUint8Array() );
+		Encoding::writeVarUint8Array( $encoder, $this->typeRefEncoder->toUint8Array() );
+		Encoding::writeVarUint8Array( $encoder, $this->lenEncoder->toUint8Array() );
+		Encoding::writeUint8Array( $encoder, Encoding::toUint8Array( $this->restEncoder ) );
+		return Encoding::toUint8Array( $encoder );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param ID $id ID.
 	 * @return void
 	 */
-	public function resetDsCurVal( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function writeLeftID( ID $id ): void {
+		$this->clientEncoder->write( $id->client );
+		$this->leftClockEncoder->write( $id->clock );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param ID $id ID.
 	 * @return void
 	 */
-	public function writeDsClock( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function writeRightID( ID $id ): void {
+		$this->clientEncoder->write( $id->client );
+		$this->rightClockEncoder->write( $id->clock );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param int $client Client id.
 	 * @return void
 	 */
-	public function writeDsLen( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function writeClient( int $client ): void {
+		$this->clientEncoder->write( $client );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param int $info Unsigned 8-bit integer.
 	 * @return void
 	 */
-	public function writeLeftID( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function writeInfo( int $info ): void {
+		$this->infoEncoder->write( $info );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param string $s String.
 	 * @return void
 	 */
-	public function writeRightID( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function writeString( string $s ): void {
+		$this->stringEncoder->write( $s );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param bool $isYKey Whether the parent info is a Y key.
 	 * @return void
 	 */
-	public function writeClient( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function writeParentInfo( bool $isYKey ): void {
+		$this->parentInfoEncoder->write( $isYKey ? 1 : 0 );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param int $info Type ref.
 	 * @return void
 	 */
-	public function writeInfo( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function writeTypeRef( int $info ): void {
+		$this->typeRefEncoder->write( $info );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param int $len Length.
 	 * @return void
 	 */
-	public function writeString( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function writeLen( int $len ): void {
+		$this->lenEncoder->write( $len );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $any Value.
 	 * @return void
 	 */
-	public function writeParentInfo( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function writeAny( $any ): void {
+		Encoding::writeAny( $this->restEncoder, $any );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param Buffer $buf Buffer.
 	 * @return void
 	 */
-	public function writeTypeRef( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function writeBuf( Buffer $buf ): void {
+		Encoding::writeVarUint8Array( $this->restEncoder, $buf );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param mixed $embed JSON-serializable embed.
 	 * @return void
 	 */
-	public function writeLen( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function writeJSON( $embed ): void {
+		Encoding::writeAny( $this->restEncoder, $embed );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
+	 * @param string $key Key.
 	 * @return void
 	 */
-	public function writeAny( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
-	}
-
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function writeBuf( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
-	}
-
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function writeJSON( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
-	}
-
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function writeKey( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function writeKey( string $key ): void {
+		if ( array_key_exists( $key, $this->keyMap ) ) {
+			$this->keyClockEncoder->write( $this->keyMap[ $key ] );
+			return;
+		}
+		$this->keyClockEncoder->write( $this->keyClock++ );
+		$this->stringEncoder->write( $key );
 	}
 }

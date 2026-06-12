@@ -43,7 +43,9 @@ final class YTextConformanceTest extends TestCase {
 		self::assertSame( $this->normalizeJsonValue( $scenario['delta'] ), $this->normalizeJsonValue( $text->toDelta() ), $scenario['name'] . ' delta' );
 		self::assertSame( $scenario['stateVectorHex'], \Yjs\encodeStateVector( $doc )->toHexString(), $scenario['name'] . ' state vector' );
 		self::assertSame( $scenario['updateHex'], \Yjs\encodeStateAsUpdate( $doc )->toHexString(), $scenario['name'] . ' update' );
+		self::assertSame( $scenario['updateV2Hex'], \Yjs\encodeStateAsUpdateV2( $doc )->toHexString(), $scenario['name'] . ' update V2' );
 		self::assertSame( $scenario['snapshotHex'], \Yjs\encodeSnapshot( \Yjs\snapshot( $doc ) )->toHexString(), $scenario['name'] . ' snapshot' );
+		self::assertSame( $scenario['snapshotV2Hex'], \Yjs\encodeSnapshotV2( \Yjs\snapshot( $doc ) )->toHexString(), $scenario['name'] . ' snapshot V2' );
 	}
 
 	/**
@@ -93,6 +95,7 @@ final class YTextConformanceTest extends TestCase {
 			self::assertSame( $this->normalizeJsonValue( $case['deltas'][ $index ] ), $this->normalizeJsonValue( $text->toDelta() ), $case['name'] . ' doc ' . $index . ' delta' );
 			self::assertSame( $case['stateVectorHexes'][ $index ], \Yjs\encodeStateVector( $doc )->toHexString(), $case['name'] . ' doc ' . $index . ' state vector' );
 			self::assertSame( $case['updateHexes'][ $index ], \Yjs\encodeStateAsUpdate( $doc )->toHexString(), $case['name'] . ' doc ' . $index . ' update' );
+			self::assertSame( $case['updateV2Hexes'][ $index ], \Yjs\encodeStateAsUpdateV2( $doc )->toHexString(), $case['name'] . ' doc ' . $index . ' update V2' );
 		}
 	}
 

@@ -1,6 +1,6 @@
 <?php
 /**
- * UpdateDecoderV2 public API stub.
+ * Update decoder V2.
  *
  * @package Yjs
  */
@@ -9,152 +9,178 @@ declare(strict_types=1);
 
 namespace Yjs\Utils;
 
+use Yjs\Lib0\Buffer;
+use Yjs\Lib0\Decoder;
+use Yjs\Lib0\Decoding;
+use Yjs\Lib0\IntDiffOptRleDecoder;
+use Yjs\Lib0\RleDecoder;
+use Yjs\Lib0\StringDecoder;
+use Yjs\Lib0\UintOptRleDecoder;
+
 /**
- * UpdateDecoderV2 API stub for the Yjs port red baseline.
+ * Port of UpdateDecoderV2 from yjs/src/utils/UpdateDecoder.js.
  */
-class UpdateDecoderV2 {
-	use \Yjs\NotImplementedTrait;
+class UpdateDecoderV2 extends DSDecoderV2 {
+	/**
+	 * @var array<int,string>
+	 */
+	private array $keys = array();
 
 	/**
-	 * @param mixed ...$args Constructor arguments.
+	 * @var IntDiffOptRleDecoder
 	 */
-	public function __construct( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	private IntDiffOptRleDecoder $keyClockDecoder;
+
+	/**
+	 * @var UintOptRleDecoder
+	 */
+	private UintOptRleDecoder $clientDecoder;
+
+	/**
+	 * @var IntDiffOptRleDecoder
+	 */
+	private IntDiffOptRleDecoder $leftClockDecoder;
+
+	/**
+	 * @var IntDiffOptRleDecoder
+	 */
+	private IntDiffOptRleDecoder $rightClockDecoder;
+
+	/**
+	 * @var RleDecoder
+	 */
+	private RleDecoder $infoDecoder;
+
+	/**
+	 * @var StringDecoder
+	 */
+	private StringDecoder $stringDecoder;
+
+	/**
+	 * @var RleDecoder
+	 */
+	private RleDecoder $parentInfoDecoder;
+
+	/**
+	 * @var UintOptRleDecoder
+	 */
+	private UintOptRleDecoder $typeRefDecoder;
+
+	/**
+	 * @var UintOptRleDecoder
+	 */
+	private UintOptRleDecoder $lenDecoder;
+
+	/**
+	 * @param Decoder $decoder Decoder.
+	 */
+	public function __construct( Decoder $decoder ) {
+		parent::__construct( $decoder );
+		Decoding::readVarUint( $decoder );
+		$this->keyClockDecoder   = new IntDiffOptRleDecoder( Decoding::readVarUint8Array( $decoder ) );
+		$this->clientDecoder     = new UintOptRleDecoder( Decoding::readVarUint8Array( $decoder ) );
+		$this->leftClockDecoder  = new IntDiffOptRleDecoder( Decoding::readVarUint8Array( $decoder ) );
+		$this->rightClockDecoder = new IntDiffOptRleDecoder( Decoding::readVarUint8Array( $decoder ) );
+		$this->infoDecoder       = new RleDecoder(
+			Decoding::readVarUint8Array( $decoder ),
+			static fn ( Decoder $inner ): int => Decoding::readUint8( $inner )
+		);
+		$this->stringDecoder     = new StringDecoder( Decoding::readVarUint8Array( $decoder ) );
+		$this->parentInfoDecoder = new RleDecoder(
+			Decoding::readVarUint8Array( $decoder ),
+			static fn ( Decoder $inner ): int => Decoding::readUint8( $inner )
+		);
+		$this->typeRefDecoder    = new UintOptRleDecoder( Decoding::readVarUint8Array( $decoder ) );
+		$this->lenDecoder        = new UintOptRleDecoder( Decoding::readVarUint8Array( $decoder ) );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return ID
 	 */
-	public function resetDsCurVal( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function readLeftID(): ID {
+		return new ID( $this->clientDecoder->read(), $this->leftClockDecoder->read() );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return ID
 	 */
-	public function readDsClock( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function readRightID(): ID {
+		return new ID( $this->clientDecoder->read(), $this->rightClockDecoder->read() );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return int
 	 */
-	public function readDsLen( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function readClient(): int {
+		return $this->clientDecoder->read();
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return int
 	 */
-	public function readLeftID( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function readInfo(): int {
+		return (int) $this->infoDecoder->read();
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return string
 	 */
-	public function readRightID( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function readString(): string {
+		return $this->stringDecoder->read();
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return bool
 	 */
-	public function readClient( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function readParentInfo(): bool {
+		return 1 === $this->parentInfoDecoder->read();
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return int
 	 */
-	public function readInfo( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function readTypeRef(): int {
+		return $this->typeRefDecoder->read();
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return int
 	 */
-	public function readString( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function readLen(): int {
+		return $this->lenDecoder->read();
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
-	public function readParentInfo( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function readAny() {
+		return Decoding::readAny( $this->restDecoder );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return Buffer
 	 */
-	public function readTypeRef( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function readBuf(): Buffer {
+		return Decoding::readVarUint8Array( $this->restDecoder );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return mixed
 	 */
-	public function readLen( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function readJSON() {
+		return Decoding::readAny( $this->restDecoder );
 	}
 
 	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
+	 * @return string
 	 */
-	public function readAny( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
-	}
-
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function readBuf( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
-	}
-
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function readJSON( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
-	}
-
-	/**
-	 * @param mixed ...$args Arguments.
-	 * @return void
-	 */
-	public function readKey( ...$args ) {
-		unset( $args );
-		$this->notImplemented( __METHOD__ );
+	public function readKey(): string {
+		$keyClock = $this->keyClockDecoder->read();
+		if ( $keyClock < count( $this->keys ) ) {
+			return $this->keys[ $keyClock ];
+		}
+		$key          = $this->stringDecoder->read();
+		$this->keys[] = $key;
+		return $key;
 	}
 }
