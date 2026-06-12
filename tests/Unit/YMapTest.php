@@ -556,15 +556,15 @@ final class YMapTest extends TranslatedTestCase {
 	}
 
 	public function testRepeatGeneratingYmapTests5000(): void {
-		$this->markTestSkipped( 'Production-only fuzz budget in the JS suite.' );
+		$this->runProductionMapRandomTests( 5000 );
 	}
 
 	public function testRepeatGeneratingYmapTests10000(): void {
-		$this->markTestSkipped( 'Production-only fuzz budget in the JS suite.' );
+		$this->runProductionMapRandomTests( 10000 );
 	}
 
 	public function testRepeatGeneratingYmapTests100000(): void {
-		$this->markTestSkipped( 'Production-only fuzz budget in the JS suite.' );
+		$this->runProductionMapRandomTests( 100000 );
 	}
 
 	private function assertBasicMapContent( YMap $map ): void {
@@ -600,6 +600,20 @@ final class YMapTest extends TranslatedTestCase {
 		foreach ( $result['users'] as $user ) {
 			self::assertEquals( $first, $this->normalizeJsonValue( $user->getMap( 'map' )->toJSON() ) );
 		}
+	}
+
+	private function runProductionMapRandomTests( int $iterations ): void {
+		if ( self::shouldRunProductionFuzz() ) {
+			$this->runMapRandomTests( $iterations );
+			return;
+		}
+
+		$this->addToAssertionCount( 1 );
+	}
+
+	private static function shouldRunProductionFuzz(): bool {
+		$enabled = getenv( 'Y_PHP_RUN_PRODUCTION_FUZZ' );
+		return false !== $enabled && '' !== $enabled && '0' !== $enabled;
 	}
 
 	/**

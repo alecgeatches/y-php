@@ -1848,6 +1848,28 @@ function typeListGet( Types\AbstractType $type, int $index ) {
 
 /**
  * @param mixed $value Value.
+ * @return mixed
+ */
+function copyJsonValue( $value ) {
+	if ( is_array( $value ) ) {
+		$copy = array();
+		foreach ( $value as $key => $item ) {
+			$copy[ $key ] = copyJsonValue( $item );
+		}
+		return $copy;
+	}
+	if ( $value instanceof \stdClass ) {
+		$copy = new \stdClass();
+		foreach ( get_object_vars( $value ) as $key => $item ) {
+			$copy->{$key} = copyJsonValue( $item );
+		}
+		return $copy;
+	}
+	return $value;
+}
+
+/**
+ * @param mixed $value Value.
  * @return object
  */
 function contentForValue( $value ): object {
@@ -1860,7 +1882,7 @@ function contentForValue( $value ): object {
 	if ( $value instanceof Types\AbstractType ) {
 		return new Structs\ContentType( $value );
 	}
-	return new Structs\ContentAny( array( $value ) );
+	return new Structs\ContentAny( array( copyJsonValue( $value ) ) );
 }
 
 /**
@@ -1896,7 +1918,7 @@ function typeListInsertGenericsAfter( $transaction, Types\AbstractType $parent, 
 
 	foreach ( $content as $c ) {
 		if ( null === $c || is_int( $c ) || is_float( $c ) || is_bool( $c ) || is_string( $c ) || is_array( $c ) || $c instanceof \stdClass ) {
-			$jsonContent[] = $c;
+			$jsonContent[] = copyJsonValue( $c );
 			continue;
 		}
 		$packJsonContent();

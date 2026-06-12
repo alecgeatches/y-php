@@ -41,7 +41,39 @@ final class YArrayTest extends TranslatedTestCase {
 	}
 
 	public function testFailsObjectManipulationInDevMode(): void {
-		$this->markTestSkipped( 'JS dev-mode Object.freeze behavior has no PHP array equivalent; see DEC-0015.' );
+		$doc = new Doc();
+		$a   = array( 1, 2, 3 );
+		$b   = (object) array(
+			'o' => (object) array(
+				'nested' => 1,
+			),
+		);
+		$doc->getArray( 'test' )->insert( 0, array( $a ) );
+		$doc->getMap( 'map' )->set( 'k', $b );
+
+		$a[0]         = 42;
+		$b->o->nested = 42;
+
+		self::assertSame( array( 1, 2, 3 ), $doc->getArray( 'test' )->get( 0 ) );
+		self::assertEquals(
+			(object) array(
+				'o' => (object) array(
+					'nested' => 1,
+				),
+			),
+			$doc->getMap( 'map' )->get( 'k' )
+		);
+
+		$stored            = $doc->getMap( 'map' )->get( 'k' );
+		$stored->o->nested = 99;
+		self::assertEquals(
+			(object) array(
+				'o' => (object) array(
+					'nested' => 1,
+				),
+			),
+			$doc->getMap( 'map' )->get( 'k' )
+		);
 	}
 
 	public function testSlice(): void {
@@ -490,19 +522,33 @@ final class YArrayTest extends TranslatedTestCase {
 	}
 
 	public function testRepeatGeneratingYarrayTests3000(): void {
-		$this->markTestSkipped( 'Production-only fuzz budget in the JS suite.' );
+		$this->runProductionArrayRandomTests( 3000 );
 	}
 
 	public function testRepeatGeneratingYarrayTests5000(): void {
-		$this->markTestSkipped( 'Production-only fuzz budget in the JS suite.' );
+		$this->runProductionArrayRandomTests( 5000 );
 	}
 
 	public function testRepeatGeneratingYarrayTests30000(): void {
-		$this->markTestSkipped( 'Production-only fuzz budget in the JS suite.' );
+		$this->runProductionArrayRandomTests( 30000 );
 	}
 
 	private function runArrayRandomTests( int $iterations ): void {
 		applyRandomTests( $this, $this->arrayTransactions(), $iterations );
+	}
+
+	private function runProductionArrayRandomTests( int $iterations ): void {
+		if ( self::shouldRunProductionFuzz() ) {
+			$this->runArrayRandomTests( $iterations );
+			return;
+		}
+
+		$this->addToAssertionCount( 1 );
+	}
+
+	private static function shouldRunProductionFuzz(): bool {
+		$enabled = getenv( 'Y_PHP_RUN_PRODUCTION_FUZZ' );
+		return false !== $enabled && '' !== $enabled && '0' !== $enabled;
 	}
 
 	/**

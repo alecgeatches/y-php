@@ -22,7 +22,7 @@ class ContentJSON {
 	 * @param array<int,mixed> $arr Content array.
 	 */
 	public function __construct( array $arr ) {
-		$this->arr = $arr;
+		$this->arr = array_map( '\Yjs\copyJsonValue', $arr );
 	}
 
 	/**
@@ -36,7 +36,7 @@ class ContentJSON {
 	 * @return array<int,mixed>
 	 */
 	public function getContent(): array {
-		return $this->arr;
+		return array_map( '\Yjs\copyJsonValue', $this->arr );
 	}
 
 	/**
@@ -68,7 +68,7 @@ class ContentJSON {
 	 * @return bool
 	 */
 	public function mergeWith( ContentJSON $right ): bool {
-		$this->arr = array_merge( $this->arr, $right->arr );
+		$this->arr = array_map( '\Yjs\copyJsonValue', array_merge( $this->arr, $right->arr ) );
 		return true;
 	}
 

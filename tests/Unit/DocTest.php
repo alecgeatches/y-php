@@ -14,6 +14,7 @@ use Yjs\Lib0\Buffer;
 use Yjs\Types\YMap;
 use Yjs\Types\YXmlText;
 use Yjs\Utils\Doc;
+use Yjs\Utils\UndoManager;
 
 /**
  * Tests ported from yjs/tests/doc.tests.js for the M2.4 runtime surface.
@@ -56,7 +57,32 @@ final class DocTest extends TestCase {
 	 * @return void
 	 */
 	public function testOriginInTransaction(): void {
-		self::markTestSkipped( 'Requires YText snapshot/toDelta cleanup transactions from later milestones.' );
+		$doc     = new Doc();
+		$ytext   = $doc->getText();
+		$origins = array();
+		$doc->on(
+			'afterTransaction',
+			static function ( $tr ) use ( &$origins, $doc, $ytext ): void {
+				$origins[] = $tr->origin;
+				if ( count( $origins ) <= 1 ) {
+					$ytext->toDelta( \Yjs\snapshot( $doc ) );
+					$doc->transact(
+						static function () use ( $ytext ): void {
+							$ytext->insert( 0, 'a' );
+						},
+						'nested'
+					);
+				}
+			}
+		);
+		$doc->transact(
+			static function () use ( $ytext ): void {
+				$ytext->insert( 0, '0' );
+			},
+			'first'
+		);
+
+		self::assertSame( array( 'first', 'cleanup', 'nested' ), $origins );
 	}
 
 	/**
@@ -218,7 +244,51 @@ final class DocTest extends TestCase {
 	 * @return void
 	 */
 	public function testSubdocLoadEdgeCases(): void {
-		self::markTestSkipped( 'Full subdocument load/destroy edge cases are completed with later type milestones.' );
+		$ydoc    = new Doc();
+		$yarray  = $ydoc->getArray();
+		$subdoc1 = new Doc();
+		$event   = null;
+		$ydoc->on(
+			'subdocs',
+			static function ( array $subdocs ) use ( &$event ): void {
+				$event = $subdocs;
+			}
+		);
+		$yarray->insert( 0, array( $subdoc1 ) );
+		self::assertTrue( $subdoc1->shouldLoad );
+		self::assertFalse( $subdoc1->autoLoad );
+		self::assertNotNull( $event );
+		self::assertTrue( self::containsDoc( $event['loaded'], $subdoc1 ) );
+		self::assertTrue( self::containsDoc( $event['added'], $subdoc1 ) );
+
+		$subdoc1->destroy();
+		$subdoc2 = $yarray->get( 0 );
+		self::assertNotSame( $subdoc1, $subdoc2 );
+		self::assertTrue( self::containsDoc( $event['added'], $subdoc2 ) );
+		self::assertFalse( self::containsDoc( $event['loaded'], $subdoc2 ) );
+
+		$subdoc2->load();
+		self::assertFalse( self::containsDoc( $event['added'], $subdoc2 ) );
+		self::assertTrue( self::containsDoc( $event['loaded'], $subdoc2 ) );
+
+		$ydoc2 = new Doc();
+		$ydoc2->on(
+			'subdocs',
+			static function ( array $subdocs ) use ( &$event ): void {
+				$event = $subdocs;
+			}
+		);
+		\Yjs\applyUpdate( $ydoc2, \Yjs\encodeStateAsUpdate( $ydoc ) );
+		$subdoc3 = $ydoc2->getArray()->get( 0 );
+		self::assertFalse( $subdoc3->shouldLoad );
+		self::assertFalse( $subdoc3->autoLoad );
+		self::assertTrue( self::containsDoc( $event['added'], $subdoc3 ) );
+		self::assertFalse( self::containsDoc( $event['loaded'], $subdoc3 ) );
+
+		$subdoc3->load();
+		self::assertTrue( $subdoc3->shouldLoad );
+		self::assertFalse( self::containsDoc( $event['added'], $subdoc3 ) );
+		self::assertTrue( self::containsDoc( $event['loaded'], $subdoc3 ) );
 	}
 
 	/**
@@ -227,7 +297,48 @@ final class DocTest extends TestCase {
 	 * @return void
 	 */
 	public function testSubdocLoadEdgeCasesAutoload(): void {
-		self::markTestSkipped( 'Full subdocument autoload edge cases are completed with later type milestones.' );
+		$ydoc    = new Doc();
+		$yarray  = $ydoc->getArray();
+		$subdoc1 = new Doc( array( 'autoLoad' => true ) );
+		$event   = null;
+		$ydoc->on(
+			'subdocs',
+			static function ( array $subdocs ) use ( &$event ): void {
+				$event = $subdocs;
+			}
+		);
+		$yarray->insert( 0, array( $subdoc1 ) );
+		self::assertTrue( $subdoc1->shouldLoad );
+		self::assertTrue( $subdoc1->autoLoad );
+		self::assertNotNull( $event );
+		self::assertTrue( self::containsDoc( $event['loaded'], $subdoc1 ) );
+		self::assertTrue( self::containsDoc( $event['added'], $subdoc1 ) );
+
+		$subdoc1->destroy();
+		$subdoc2 = $yarray->get( 0 );
+		self::assertNotSame( $subdoc1, $subdoc2 );
+		self::assertTrue( self::containsDoc( $event['added'], $subdoc2 ) );
+		self::assertFalse( self::containsDoc( $event['loaded'], $subdoc2 ) );
+
+		$subdoc2->load();
+		self::assertFalse( self::containsDoc( $event['added'], $subdoc2 ) );
+		self::assertTrue( self::containsDoc( $event['loaded'], $subdoc2 ) );
+
+		$ydoc2 = new Doc();
+		$ydoc2->on(
+			'subdocs',
+			static function ( array $subdocs ) use ( &$event ): void {
+				$event = $subdocs;
+			}
+		);
+		\Yjs\applyUpdate( $ydoc2, \Yjs\encodeStateAsUpdate( $ydoc ) );
+		$subdoc3 = $ydoc2->getArray()->get( 0 );
+		self::assertTrue( $subdoc1->shouldLoad );
+		self::assertTrue( $subdoc1->autoLoad );
+		self::assertTrue( $subdoc3->shouldLoad );
+		self::assertTrue( $subdoc3->autoLoad );
+		self::assertTrue( self::containsDoc( $event['added'], $subdoc3 ) );
+		self::assertTrue( self::containsDoc( $event['loaded'], $subdoc3 ) );
 	}
 
 	/**
@@ -236,7 +347,16 @@ final class DocTest extends TestCase {
 	 * @return void
 	 */
 	public function testSubdocsUndo(): void {
-		self::markTestSkipped( 'Requires UndoManager and full XML behavior from later milestones.' );
+		$ydoc        = new Doc();
+		$elems       = $ydoc->getXmlFragment();
+		$undoManager = new UndoManager( $elems );
+		$subdoc      = new Doc();
+
+		$elems->insert( 0, array( $subdoc ) );
+		$undoManager->undo();
+		$undoManager->redo();
+
+		self::assertSame( 1, $elems->length );
 	}
 
 	/**
@@ -342,5 +462,19 @@ final class DocTest extends TestCase {
 			self::fail( 'Unable to read fixture ' . $name );
 		}
 		return $data;
+	}
+
+	/**
+	 * @param array<int,Doc> $docs   Documents.
+	 * @param Doc            $target Target document.
+	 * @return bool
+	 */
+	private static function containsDoc( array $docs, Doc $target ): bool {
+		foreach ( $docs as $doc ) {
+			if ( $doc === $target ) {
+				return true;
+			}
+		}
+		return false;
 	}
 }
