@@ -1,6 +1,6 @@
 <?php
 /**
- * AbstractType public API stub.
+ * Shared Yjs type API.
  *
  * @package Yjs
  */

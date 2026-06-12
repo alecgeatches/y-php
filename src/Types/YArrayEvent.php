@@ -1,6 +1,6 @@
 <?php
 /**
- * YArrayEvent public API stub.
+ * YArray event API.
  *
  * @package Yjs
  */

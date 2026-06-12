@@ -1,6 +1,6 @@
 <?php
 /**
- * Sync protocol stubs.
+ * Sync protocol helpers.
  *
  * @package Yjs
  */

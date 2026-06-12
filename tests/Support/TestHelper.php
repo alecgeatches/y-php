@@ -1,6 +1,6 @@
 <?php
 /**
- * Translated Yjs test helper function stubs.
+ * Translated Yjs test helper functions.
  *
  * @package Yjs
  */

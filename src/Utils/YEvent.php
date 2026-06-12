@@ -1,6 +1,6 @@
 <?php
 /**
- * YEvent public API stub.
+ * YEvent API.
  *
  * @package Yjs
  */

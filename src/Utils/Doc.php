@@ -1,6 +1,6 @@
 <?php
 /**
- * Doc public API stub.
+ * Doc API.
  *
  * @package Yjs
  */
@@ -10,7 +10,7 @@ declare(strict_types=1);
 namespace Yjs\Utils;
 
 /**
- * Doc API stub for the Yjs port red baseline.
+ * Yjs document.
  */
 class Doc extends \Yjs\Lib0\Observable {
 	use \Yjs\NotImplementedTrait;

@@ -1,6 +1,6 @@
 <?php
 /**
- * Transaction public API stub.
+ * Transaction API.
  *
  * @package Yjs
  */

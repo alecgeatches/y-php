@@ -1,6 +1,6 @@
 <?php
 /**
- * RelativePosition public API stub.
+ * RelativePosition API.
  *
  * @package Yjs
  */

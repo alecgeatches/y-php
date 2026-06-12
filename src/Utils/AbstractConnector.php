@@ -1,6 +1,6 @@
 <?php
 /**
- * AbstractConnector public API stub.
+ * AbstractConnector API.
  *
  * @package Yjs
  */
@@ -10,7 +10,7 @@ declare(strict_types=1);
 namespace Yjs\Utils;
 
 /**
- * AbstractConnector API stub for the Yjs port red baseline.
+ * Base connector type.
  */
 class AbstractConnector extends \Yjs\Lib0\Observable {
 	use \Yjs\NotImplementedTrait;

@@ -10,7 +10,7 @@ declare(strict_types=1);
 namespace Yjs;
 
 /**
- * Raised by milestone stubs until behavior is ported.
+ * Raised when an API surface is not implemented.
  */
 class NotImplemented extends \RuntimeException {
 }

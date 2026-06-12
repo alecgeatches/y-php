@@ -1,6 +1,6 @@
 <?php
 /**
- * AbsolutePosition public API stub.
+ * AbsolutePosition API.
  *
  * @package Yjs
  */

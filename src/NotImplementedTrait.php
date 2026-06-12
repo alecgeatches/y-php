@@ -10,29 +10,29 @@ declare(strict_types=1);
 namespace Yjs;
 
 /**
- * Throws the common milestone exception from stubbed APIs.
+ * Throws the common exception for unimplemented APIs.
  */
 trait NotImplementedTrait {
 	/**
 	 * @param string $symbol API symbol.
 	 * @return void
 	 *
-	 * @throws NotImplemented Always thrown for M1 stubs.
+	 * @throws NotImplemented Always thrown.
 	 */
 	protected function notImplemented( string $symbol ): void {
 		// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped
-		throw new NotImplemented( $symbol . ' is not implemented in y-php milestone 1.' );
+		throw new NotImplemented( $symbol . ' is not implemented in y-php.' );
 	}
 
 	/**
 	 * @param string $symbol API symbol.
 	 * @return void
 	 *
-	 * @throws NotImplemented Always thrown for M1 stubs.
+	 * @throws NotImplemented Always thrown.
 	 */
 	protected static function notImplementedStatic( string $symbol ): void {
 		// phpcs:ignore WordPress.Security.EscapeOutput.ExceptionNotEscaped
-		throw new NotImplemented( $symbol . ' is not implemented in y-php milestone 1.' );
+		throw new NotImplemented( $symbol . ' is not implemented in y-php.' );
 	}
 
 	/**
@@ -40,7 +40,7 @@ trait NotImplementedTrait {
 	 * @param array<int,mixed> $arguments Arguments.
 	 * @return void
 	 *
-	 * @throws NotImplemented Always thrown for M1 stubs.
+	 * @throws NotImplemented Always thrown.
 	 */
 	public function __call( string $name, array $arguments ) {
 		unset( $arguments );
@@ -52,7 +52,7 @@ trait NotImplementedTrait {
 	 * @param array<int,mixed> $arguments Arguments.
 	 * @return void
 	 *
-	 * @throws NotImplemented Always thrown for M1 stubs.
+	 * @throws NotImplemented Always thrown.
 	 */
 	public static function __callStatic( string $name, array $arguments ) {
 		unset( $arguments );

@@ -17,7 +17,7 @@ use Yjs\Utils\Doc;
 use Yjs\Utils\UndoManager;
 
 /**
- * Tests ported from yjs/tests/doc.tests.js for the M2.4 runtime surface.
+ * Tests ported from yjs/tests/doc.tests.js.
  */
 final class DocTest extends TestCase {
 	/**

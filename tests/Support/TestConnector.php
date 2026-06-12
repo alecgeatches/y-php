@@ -1,6 +1,6 @@
 <?php
 /**
- * Translated Yjs TestConnector stub.
+ * Translated Yjs TestConnector helper.
  *
  * @package Yjs
  */

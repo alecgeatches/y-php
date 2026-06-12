@@ -1,6 +1,6 @@
 <?php
 /**
- * YArray public API stub.
+ * YArray shared type API.
  *
  * @package Yjs
  */
@@ -10,7 +10,7 @@ declare(strict_types=1);
 namespace Yjs\Types;
 
 /**
- * YArray API stub for the Yjs port red baseline.
+ * Shared array type.
  */
 class YArray extends AbstractType implements \IteratorAggregate {
 	use \Yjs\NotImplementedTrait;
