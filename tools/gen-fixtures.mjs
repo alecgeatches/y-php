@@ -411,6 +411,86 @@ const makeUpdateUtilityV2Fixtures = () => ({
   ]
 })
 
+const capturePendingStructsCase = codec => {
+  const encodeState = codec === 'v2' ? Y.encodeStateAsUpdateV2 : Y.encodeStateAsUpdate
+  const applyUpdate = codec === 'v2' ? Y.applyUpdateV2 : Y.applyUpdate
+
+  const source = new Y.Doc({ guid: `y-php-pending-structs-${codec}` })
+  source.clientID = 42
+  const text = source.getText('t')
+  const sv0 = Y.encodeStateVector(source)
+  text.insert(0, 'abc')
+  const u1 = encodeState(source, sv0)
+  const sv1 = Y.encodeStateVector(source)
+  text.insert(3, 'def')
+  const u2 = encodeState(source, sv1)
+
+  // Deliver u2 before u1: the receiver must park the structs as pending.
+  const receiver = new Y.Doc({ guid: `y-php-pending-structs-receiver-${codec}` })
+  applyUpdate(receiver, u2)
+  const pendingUpdateHex = hex(receiver.store.pendingStructs.update)
+  const pendingMissing = Array.from(receiver.store.pendingStructs.missing.entries())
+  const encodedWithPendingHex = hex(encodeState(receiver))
+  applyUpdate(receiver, u1)
+
+  return {
+    name: `out-of-order-structs-${codec}`,
+    codec,
+    u1Hex: hex(u1),
+    u2Hex: hex(u2),
+    pendingUpdateHex,
+    pendingMissing,
+    encodedWithPendingHex,
+    finalText: receiver.getText('t').toString(),
+    finalUpdateHex: hex(encodeState(receiver))
+  }
+}
+
+const capturePendingDeleteSetCase = codec => {
+  const encodeState = codec === 'v2' ? Y.encodeStateAsUpdateV2 : Y.encodeStateAsUpdate
+  const applyUpdate = codec === 'v2' ? Y.applyUpdateV2 : Y.applyUpdate
+
+  const source = new Y.Doc({ guid: `y-php-pending-ds-${codec}` })
+  source.clientID = 42
+  const text = source.getText('t')
+  const sv0 = Y.encodeStateVector(source)
+  text.insert(0, 'abc')
+  const u1 = encodeState(source, sv0)
+  const sv1 = Y.encodeStateVector(source)
+  text.delete(0, 1)
+  const u2 = encodeState(source, sv1)
+
+  // u2 only contains a delete set; its targets are unknown to the receiver.
+  const receiver = new Y.Doc({ guid: `y-php-pending-ds-receiver-${codec}` })
+  applyUpdate(receiver, u2)
+  const pendingDsHex = hex(receiver.store.pendingDs)
+  const encodedWithPendingHex = hex(encodeState(receiver))
+  applyUpdate(receiver, u1)
+
+  return {
+    name: `pending-delete-set-${codec}`,
+    codec,
+    u1Hex: hex(u1),
+    u2Hex: hex(u2),
+    pendingDsHex,
+    encodedWithPendingHex,
+    finalText: receiver.getText('t').toString(),
+    finalUpdateHex: hex(encodeState(receiver))
+  }
+}
+
+const makePendingUpdateFixtures = () => ({
+  source: 'yjs/src/utils/encoding.js (integrateStructs, readUpdateV2, encodeStateAsUpdateV2)',
+  structsCases: [
+    capturePendingStructsCase('v1'),
+    capturePendingStructsCase('v2')
+  ],
+  deleteSetCases: [
+    capturePendingDeleteSetCase('v1'),
+    capturePendingDeleteSetCase('v2')
+  ]
+})
+
 const runYArrayConvergenceCase = (seed, iterations, users) => {
   const gen = prng.create(seed)
   const docs = Array.from({ length: users }, (_, i) => {
@@ -1554,4 +1634,8 @@ fs.writeFileSync(
 fs.writeFileSync(
   path.join(fixturesDir, 'struct-content.json'),
   `${JSON.stringify(makeStructContentFixtures(), null, 2)}\n`
+)
+fs.writeFileSync(
+  path.join(fixturesDir, 'pending-updates.json'),
+  `${JSON.stringify(makePendingUpdateFixtures(), null, 2)}\n`
 )
